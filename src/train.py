@@ -4,7 +4,7 @@ Reads configuration from a JSON file and runs the training loop using the
 configurations.
 """
 import argparse
-import training.trainer
+import src.training.trainer
 import json
 
 
@@ -75,7 +75,9 @@ def parse_json(file_path):
         if 'Adam':
         - eps (float): Epsilon value.
     - lr_config:
-        - TODO
+        - warmup_iterations (int): Number of iterations to warmup with.
+        - warmup_ratio (float): Value to use for the warmup.
+        - step (int or list): Period or milestones.
     - data
         - data_root (str): Path to coco dataset root.
         - imgs_per_gpu (int): Number of images to train per gpu per iteration.
@@ -107,7 +109,7 @@ def parse_json(file_path):
 def main():
     args = parse_args()
     json_config = parse_json(args.json_path)
-    training.trainer.Trainer(json_config)
+    src.training.trainer.Trainer(json_config)
 
 
 if __name__ == '__main__':
