@@ -3,7 +3,10 @@
 openmm implementation of the Feature Pyramid Neck.
 """
 import torch.nn as nn
+import torch.nn.functional as F
+
 from .utils.conv_module import ConvModule
+from .utils.weight_init import xavier_init
 
 class FPN(nn.Module):
 
@@ -95,7 +98,6 @@ class FPN(nn.Module):
             if isinstance(m, nn.Conv2d):
                 xavier_init(m, distribution='uniform')
 
-    @auto_fp16()
     def forward(self, inputs):
         assert len(inputs) == len(self.in_channels)
 

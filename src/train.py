@@ -4,8 +4,11 @@ Reads configuration from a JSON file and runs the training loop using the
 configurations.
 """
 import argparse
-import src.training.trainer
+#import src.training.trainer
 import json
+import re
+from os import makedirs
+from os.path import exists, isdir, isfile
 
 
 def parse_args():
@@ -76,7 +79,9 @@ def parse_json(file_path):
         - eps (float): Epsilon value.
     - lr_config:
         - warmup_iterations (int): Number of iterations to warmup with.
-        - warmup_ratio (float): Value to use for the warmup.
+        - warmup_ratio (float or str): Value to use for the warmup. If a ratio
+                                       or fraction is desired, a string can be
+                                       used instead.
         - step (int or list): Period or milestones.
     - data
         - data_root (str): Path to coco dataset root.
@@ -91,14 +96,32 @@ def parse_json(file_path):
             - ann_file (str): Path to annotation file relative to data_root.
             - img_prefix (str): Path to images relative to data_root.
     - work_dir (str): Where to put logs and tensorflow/tensorboard stuff
-    - checkpoint (str): Where to put the checkpoint file.
-    - total_epochs (str): Number of epochs to run for.
+    - checkpoint (str): Where to put the checkpoint file. This framework saves
+                        checkpoints every epoch. When resuming, it will choose
+                        the most recent checkpoint available if this points to a
+                        dir. If a specific checkpoint is chosen, it will choose
+                        that checkpoint and save further checkpoints to the same
+                        directory.
+    - total_epochs (int): Number of epochs to run for.
+    - num_gpus (int): Number of GPUs to use. It can't be a float.
+    - resume (bool): Whether or not to resume training from the most recent
+                     checkpoint.
 
     Args:
         file_path (str): The path to the JSON file.
     """
     with open(file_path, mode='r') as file:
-        jc = json.loads(file.read())[0]
+        jc = json.loads(file.read())
+
+    # Make sure the config is safe as we run an eval on it. If it is safe, then
+    # run the eval on it.
+    if isinstance(jc["lr_config"]["warmup_ratio"], str):
+        match_obj = re.match(r'\d*\.\d* ?[/*+\-] ?\d*\.\d*',
+                             jc['lr_config']['warmup_ratio'])
+        if not match_obj:
+            raise ValueError('lr_config[warmup_ratio] has an illegal value.')
+        else:
+            jc['lr_config']['warmup_ratio'] = eval(match_obj.group())
 
     # Debug
     print(json.dumps(jc, sort_keys=True, indent=4, separators=(',', ': ')))
@@ -109,7 +132,17 @@ def parse_json(file_path):
 def main():
     args = parse_args()
     json_config = parse_json(args.json_path)
-    src.training.trainer.Trainer(json_config)
+
+    # Make work_dir if it doesn't exist
+    if not exists(json_config['work_dir']):
+        makedirs(json_config['work_dir'])
+    if isdir(json_config['checkpoint']) \
+            and not exists(json_config['checkpoint']):
+        makedirs(json_config['checkpoint'])
+    elif not exists(json_config['checkpoint']):
+        raise ValueError('A specific checkpoint file has been specified, but '
+                         'this file could not be found.')
+    #src.training.trainer.Trainer(json_config)
 
 
 if __name__ == '__main__':
