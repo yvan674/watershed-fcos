@@ -1,14 +1,14 @@
-"""Watershed FCOS.
+"""FCOS.
 
-Hybrid using watershed energy map instead of centerness from FCOS.
+Implementation of FCOS taken from mmdetection.
 """
 import torch.nn as nn
 from .resnet import ResNet
 from .fpn import FPN
-from .wfcos_head import WFCOSHead
+from .fcos_head import FCOSHead
 
 
-class WFCOS(nn.Module):
+class FCOS(nn.Module):
     def __init__(self, backbone_cfg, neck_cfg, head_cfg):
         """Initializes the watershed FCOS model
 
@@ -19,12 +19,12 @@ class WFCOS(nn.Module):
             pretrained (str or None): Address of the pretrained model. If None,
                 then does not use pretrained. Defaults to None.
         """
-        super(WFCOS, self).__init__()
+        super(FCOS, self).__init__()
         self.backbone = ResNet(**backbone_cfg)
 
         self.neck = FPN(**neck_cfg)
 
-        self.head = WFCOSHead(**head_cfg)
+        self.head = FCOSHead(**head_cfg)
 
     def forward(self, x):
         x = self.backbone(x)
