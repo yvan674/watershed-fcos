@@ -14,7 +14,7 @@ class GeneralizedAttention(nn.Module):
     (https://arxiv.org/abs/1711.07971) for details.
 
     Args:
-        in_dim (int): Channels of the input feature map.
+        in_dim (int): Channels of the prediction feature map.
         spatial_range (int): The spatial range.
             -1 indicates no spatial range constraint.
         num_heads (int): The head number of empirical_attention module.

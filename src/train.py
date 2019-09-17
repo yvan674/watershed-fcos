@@ -38,16 +38,16 @@ def parse_json(file_path):
                            the configuration of the normalization layer used.
         - style (str): "pytorch" style or "caffe" style.
     - neck:
-        - in_channels (tuple): The number of input channels for each pyramid
+        - in_channels (tuple): The number of prediction channels for each pyramid
         - out_channels (int): The number of output channels.
         - start_level (int): The starting level of the FPN.
         - add_extra_convs (bool): Whether or not to add extra convolutions.
-        - extra_convs_on_inputs (bool): Add convolutions to input or not.
+        - extra_convs_on_inputs (bool): Add convolutions to prediction or not.
         - num_outs (int): Number of output tensors.
         - relu_before_extra_convs (bool): Whether or not to add a relu layer.
     - head:
         - num_classes (int): Number of classes to output.
-        - in_channels (int): Number of channels in the input of each head.
+        - in_channels (int): Number of channels in the prediction of each head.
         - max_energy (int): Number of quantized energy units in the energy map.
         - stacked_convs (int): Number of stacked convolutions to include.
         - feat_channels (int): Number of channels in the stacked convolutions.

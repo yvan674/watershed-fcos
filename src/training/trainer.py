@@ -10,7 +10,6 @@ Notes:
 import torch
 import torch.nn as nn
 from torch.optim import SGD, Adam
-from torchvision.datasets import CocoDetection
 from torch.utils.data import DataLoader
 
 from os.path import getctime, isfile, split, join
@@ -18,8 +17,9 @@ from glob import glob
 from datetime import datetime
 
 from model.wfcos import WFCOS
+from model.loss.wfcos_calculate_loss import WFCOSLossCalculator
 
-from model.loss.calculate_loss import LossCalculator
+from utils.CocoDataset import CocoDataset
 
 from logging.logger import Logger
 
@@ -65,24 +65,28 @@ class Trainer:
 
         # Get datasets ready and turn them into dataloaders
         # TODO: Add transforms/augmentations
-        train_set = CocoDetection(join(cfg['data']['data_root'],
-                                      cfg['data']['train']['img_prefix']),
-                                 join(cfg['data']['data_root'],
-                                      cfg['data']['train']['ann_file']))
-        val_set = CocoDetection(join(cfg['data']['data_root'],
-                                     cfg['data']['val']['img_prefix']),
+        # Notes: CocoDetection returns a tuple with the first item being the
+        # image as a PIL.Image.Image object and the second item being a list of
+        # the objects in the image. Each of these objects are represented as a
+        # dict with keys: ['segmentation', 'area', 'iscrowd', 'image_id',
+        # 'bbox', 'category_id', 'id']
+        train_set = CocoDataset(join(cfg['data']['data_root'],
+                                     cfg['data']['train']['img_prefix']),
                                 join(cfg['data']['data_root'],
-                                     cfg['data']['val']['ann_file']))
+                                     cfg['data']['train']['ann_file']))
+        val_set = CocoDataset(join(cfg['data']['data_root'],
+                                   cfg['data']['val']['img_prefix']),
+                              join(cfg['data']['data_root'],
+                                   cfg['data']['val']['ann_file']))
 
-        self.batch_size = cfg['data']['imgs_per_gpu'] \
-                          * cfg['num_gpus']
+        self.batch_size = cfg['data']['imgs_per_gpu'] * cfg['num_gpus']
         self.train_loader = DataLoader(train_set, self.batch_size, shuffle=True)
         self.val_loader = DataLoader(val_set, self.batch_size, shuffle=True)
 
         self.epochs = cfg['total_epochs']
 
         # Set up logging
-        logged_objects = ['loss_cls','loss_bbox', 'loss_energy',
+        logged_objects = ['loss_cls', 'loss_bbox', 'loss_energy',
                           'acc_cls', 'acc_bbox', 'acc_energy',
                           'val_loss_cls', 'val_loss_bbox', 'val_loss_energy',
                           'val_acc_cls', 'val_acc_bbox', 'val_acc_energy']
@@ -98,7 +102,8 @@ class Trainer:
         self.logger = Logger(self.work_dir, self.run_name, logged_objects,
                              configuration, cfg['logging_level'])
 
-    def get_checkpoint(self, fp):
+    @staticmethod
+    def get_checkpoint(fp):
         """Get checkpoint file from a file path, if it exists.
 
         First check if the checkpoint path is a file or not. If it is, then
@@ -112,8 +117,8 @@ class Trainer:
         - optimizer (OrderedDict): The state_dict of the optimizer.
 
         Returns:
-            (str, dict): A 2-tuple, with the first value being the dir path and the
-            second value being the file path of the checkpoint, if it exists.
+            (str, dict): A 2-tuple, with the first value being the dir path and
+            the second value the file path of the checkpoint, if it exists.
         """
         #
         if isfile(fp):
@@ -143,7 +148,6 @@ class Trainer:
             print("Loading checkpoint from {}".format(self.cp))
             self.model.load_state_dict(self.cp['state_dict'])
 
-
     def load_optimizer_checkpoint(self):
         """Loads optimizer checkpoint, if necessary."""
         if self.cp:
@@ -151,4 +155,7 @@ class Trainer:
 
     def train(self):
         """Actually perform training."""
+        for epoch in self.epochs:
+            for data in enumerate(self.train_loader):
+                image, target = data[1]
 

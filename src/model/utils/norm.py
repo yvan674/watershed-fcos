@@ -17,7 +17,7 @@ def build_norm_layer(cfg, num_features, postfix=''):
             type (str): identify norm layer type.
             layer args: args needed to instantiate a norm layer.
             requires_grad (bool): [optional] whether stop gradient updates
-        num_features (int): number of channels from input.
+        num_features (int): number of channels from prediction.
         postfix (int, str): appended into norm abbreviation to
             create named layer.
 

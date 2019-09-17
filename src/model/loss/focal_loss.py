@@ -50,7 +50,8 @@ class FocalLoss(nn.Module):
                  reduction='mean',
                  loss_weight=1.0):
         super(FocalLoss, self).__init__()
-        assert use_sigmoid is True, 'Only sigmoid focal loss supported run_name.'
+        assert use_sigmoid is True, 'Only sigmoid focal loss supported ' \
+                                    'run_name.'
         self.use_sigmoid = use_sigmoid
         self.gamma = gamma
         self.alpha = alpha

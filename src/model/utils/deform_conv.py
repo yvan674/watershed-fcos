@@ -24,7 +24,7 @@ class DeformConvFunction(Function):
                 im2col_step=64):
         if input is not None and input.dim() != 4:
             raise ValueError(
-                "Expected 4D tensor as input, got {}D tensor instead.".format(
+                "Expected 4D tensor as prediction, got {}D tensor instead.".format(
                     input.dim()))
         ctx.stride = _pair(stride)
         ctx.padding = _pair(padding)
@@ -105,7 +105,7 @@ class DeformConvFunction(Function):
             output_size += ((in_size + (2 * pad) - kernel) // stride_ + 1, )
         if not all(map(lambda s: s > 0, output_size)):
             raise ValueError(
-                "convolution input is too small (output would be {})".format(
+                "convolution prediction is too small (output would be {})".format(
                     'x'.join(map(str, output_size))))
         return output_size
 
