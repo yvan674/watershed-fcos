@@ -4,11 +4,13 @@ Reads configuration from a JSON file and runs the training loop using the
 configurations.
 """
 import argparse
-#import src.training.trainer
+
 import json
 import re
 from os import makedirs
-from os.path import exists, isdir, isfile
+from os.path import exists, isdir
+
+from training.trainer import Trainer
 
 
 def parse_args():
@@ -27,18 +29,20 @@ def parse_json(file_path):
     """Parses the JSON configuration string into a dictionary.
 
     The JSON file must include the following key-value pairs:
+    - model (str): "FCOS" or "WFCOS". Chooses which model to use.
     - backbone:
         - pretrained (str): Path to the pretrained backbone model or an address.
         - depth (int): Backbone depth.
         - num_stages (int): Backbone number of stages.
-        - out_indices (tuple): Out indices of each stage. Length must be equal to
-                               cardinality of bb_num_stages.
+        - out_indices (tuple): Out indices of each stage. Length must be equal
+                               to cardinality of bb_num_stages.
         - frozen_stages (int): Frozen stages in the backbone.
         - norm_cfg (dict): Must contain "type", and "requires_grad". Determines
                            the configuration of the normalization layer used.
         - style (str): "pytorch" style or "caffe" style.
     - neck:
-        - in_channels (tuple): The number of prediction channels for each pyramid
+        - in_channels (tuple): The number of prediction channels for each
+                               feature pyramid.
         - out_channels (int): The number of output channels.
         - start_level (int): The starting level of the FPN.
         - add_extra_convs (bool): Whether or not to add extra convolutions.
@@ -106,6 +110,7 @@ def parse_json(file_path):
     - num_gpus (int): Number of GPUs to use. It can't be a float.
     - resume (bool): Whether or not to resume training from the most recent
                      checkpoint.
+    - logging_level (str): Logging level to use.
 
     Args:
         file_path (str): The path to the JSON file.
@@ -124,7 +129,7 @@ def parse_json(file_path):
             jc['lr_config']['warmup_ratio'] = eval(match_obj.group())
 
     # Debug
-    print(json.dumps(jc, sort_keys=True, indent=4, separators=(',', ': ')))
+    # print(json.dumps(jc, sort_keys=True, indent=4, separators=(',', ': ')))
 
     return jc
 
@@ -139,10 +144,9 @@ def main():
     if isdir(json_config['checkpoint']) \
             and not exists(json_config['checkpoint']):
         makedirs(json_config['checkpoint'])
-    elif not exists(json_config['checkpoint']):
-        raise ValueError('A specific checkpoint file has been specified, but '
-                         'this file could not be found.')
-    #src.training.trainer.Trainer(json_config)
+
+    trainer = Trainer(json_config)
+    trainer.train()
 
 
 if __name__ == '__main__':

@@ -8,20 +8,22 @@ Notes:
     entirety of a run.
 """
 import torch
-import torch.nn as nn
 from torch.optim import SGD, Adam
 from torch.utils.data import DataLoader
+from torchvision.datasets import CocoDetection
+from torchvision.transforms import Compose, RandomCrop, RandomChoice, \
+    RandomVerticalFlip, RandomHorizontalFlip, Normalize, ToTensor
 
 from os.path import getctime, isfile, split, join
 from glob import glob
 from datetime import datetime
+from time import time
 
 from model.wfcos import WFCOS
-from model.loss.wfcos_calculate_loss import WFCOSLossCalculator
+from model.fcos import FCOS
+from model.loss.fcos_calculate_loss import FCOSLossCalculator
 
-from utils.CocoDataset import CocoDataset
-
-from logging.logger import Logger
+from logger.logger import Logger
 
 
 class Trainer:
@@ -35,14 +37,25 @@ class Trainer:
         self.cp_prefix, self.cp = self.get_checkpoint(cfg['checkpoint'])
         self.run_name = datetime.strftime(datetime.now(), "%y%m%d-%H%M%S")
         self.cp_prefix += "/" + self.run_name
-        self.start_epoch = self.cp['epoch']
+
+        # Set up some variables
+        if self.cp:
+            self.start_epoch = self.cp['epoch']
+        else:
+            self.start_epoch = 0
+        self.epochs = cfg['total_epochs']
+        self.batch_size = cfg['data']['imgs_per_gpu'] * cfg['num_gpus']
 
         # Set up work dir
         self.work_dir = cfg['work_dir']
 
-        self.model = WFCOS(cfg["backbone"], cfg["neck"], cfg["head"])
-        self.load_model_checkpoint(cfg['pretrained'], cfg['resume'])
-        self.model = nn.DataParallel(WFCOS)
+        # Set up model
+        if cfg['model'] == "FCOS":
+            self.model = FCOS(cfg["backbone"], cfg["neck"], cfg["head"])
+        elif cfg['model'] == "WFCOS":
+            self.model = WFCOS(cfg["backbone"], cfg["neck"], cfg["head"])
+        else:
+            raise ValueError("Chosen model is not implemented.")
 
         # Set up optimizer
         opt_cfg = cfg['optimizer']
@@ -59,33 +72,11 @@ class Trainer:
         # TODO: Add lr scheduler
 
         # Set up losses
-        self.loss_calc = LossCalculator(cfg['loss']['classifier'],
-                                        cfg['loss']['bbox'],
-                                        cfg['loss']['energy'])
+        self.loss_calc = FCOSLossCalculator(cfg['loss']['classifier'],
+                                            cfg['loss']['bbox'],
+                                            cfg['loss']['energy'])
 
-        # Get datasets ready and turn them into dataloaders
-        # TODO: Add transforms/augmentations
-        # Notes: CocoDetection returns a tuple with the first item being the
-        # image as a PIL.Image.Image object and the second item being a list of
-        # the objects in the image. Each of these objects are represented as a
-        # dict with keys: ['segmentation', 'area', 'iscrowd', 'image_id',
-        # 'bbox', 'category_id', 'id']
-        train_set = CocoDataset(join(cfg['data']['data_root'],
-                                     cfg['data']['train']['img_prefix']),
-                                join(cfg['data']['data_root'],
-                                     cfg['data']['train']['ann_file']))
-        val_set = CocoDataset(join(cfg['data']['data_root'],
-                                   cfg['data']['val']['img_prefix']),
-                              join(cfg['data']['data_root'],
-                                   cfg['data']['val']['ann_file']))
-
-        self.batch_size = cfg['data']['imgs_per_gpu'] * cfg['num_gpus']
-        self.train_loader = DataLoader(train_set, self.batch_size, shuffle=True)
-        self.val_loader = DataLoader(val_set, self.batch_size, shuffle=True)
-
-        self.epochs = cfg['total_epochs']
-
-        # Set up logging
+        # Set up logger
         logged_objects = ['loss_cls', 'loss_bbox', 'loss_energy',
                           'acc_cls', 'acc_bbox', 'acc_energy',
                           'val_loss_cls', 'val_loss_bbox', 'val_loss_energy',
@@ -101,6 +92,56 @@ class Trainer:
         }
         self.logger = Logger(self.work_dir, self.run_name, logged_objects,
                              configuration, cfg['logging_level'])
+
+        # Get datasets ready and turn them into dataloaders
+        # TODO: Add transforms/augmentations
+        # Notes: CocoDetection returns a tuple with the first item being the
+        # image as a PIL.Image.Image object and the second item being a list of
+        # the objects in the image. Each of these objects are represented as a
+        # dict with keys: ['segmentation', 'area', 'iscrowd', 'image_id',
+        # 'bbox', 'category_id', 'id']
+        img_norm = {'mean': [102.9801, 115.9465, 122.7717],
+                    'std': [1.0, 1.0, 1.0]}
+        transforms_to_do = Compose([
+            RandomCrop((640, 800), pad_if_needed=True),
+            RandomChoice((RandomHorizontalFlip(0.5),
+                          RandomVerticalFlip(0.5))),
+            Normalize(**img_norm),
+            ToTensor()
+        ])
+        # TODO Custom transforms that processes sample and target at the same time
+
+        train_set = CocoDetection(join(cfg['data']['data_root'], 'images',
+                                       cfg['data']['train']['img_prefix']),
+                                  join(cfg['data']['data_root'],
+                                       cfg['data']['train']['ann_file']),
+                                  transforms=transforms_to_do)
+        val_set = CocoDetection(join(cfg['data']['data_root'], 'images',
+                                     cfg['data']['val']['img_prefix']),
+                                join(cfg['data']['data_root'],
+                                     cfg['data']['val']['ann_file']),
+                                transforms=RandomCrop((640, 800), pad_if_needed=True))
+        self.train_loader = DataLoader(train_set, self.batch_size, shuffle=True)
+        self.val_loader = DataLoader(val_set, self.batch_size, shuffle=True)
+
+        # Load checkpoints
+        start_time = time()
+        self.load_model_checkpoint(cfg['backbone']['pretrained'], cfg['resume'])
+        self.logger.log_message("Loaded model and optimizer weights. ({} ms)"
+                                .format(int((time() - start_time) * 1000)))
+
+        # Set up device
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+            cuda_count = torch.cuda.device_count()
+            self.logger.log_message("Found {} GPU{}. Running using CUDA."
+                                    .format(cuda_count,
+                                            "s" if cuda_count > 1 else ""))
+            self.model.to(self.device, non_blocking=True)
+        else:
+            self.device = torch.device("cpu")
+            self.logger.log_message("CUDA compatible GPU not found. Running on "
+                                    "CPU.", "WARNING")
 
     @staticmethod
     def get_checkpoint(fp):
@@ -138,14 +179,17 @@ class Trainer:
         """
         if not self.cp or not resume:
             if pretrained:
-                print("Loading pretrained backbone from {}".format(pretrained))
+                self.logger.log_message("Loading pretrained backbone from {}"
+                                        .format(pretrained))
                 self.model.load_backbone_pretrained(pretrained)
                 self.model.init_weights(False, True, True)
             else:
-                print("Initializing all model weights from a fresh start.")
+                self.logger.log_message("Not resuming from a previous"
+                                        "checkpoint. Initializing weights.",
+                                        "INFO")
                 self.model.init_weights(True, True, True)
         else:
-            print("Loading checkpoint from {}".format(self.cp))
+            self.logger.log_message("Loading checkpoint from {}".format(self.cp))
             self.model.load_state_dict(self.cp['state_dict'])
 
     def load_optimizer_checkpoint(self):
@@ -155,7 +199,20 @@ class Trainer:
 
     def train(self):
         """Actually perform training."""
-        for epoch in self.epochs:
+        start_time = time()
+        self.logger.log_message("Starting training")
+        for epoch in range(self.epochs):
             for data in enumerate(self.train_loader):
                 image, target = data[1]
+
+                csv_data = []  # Reset data sent to logger at beginning.
+
+                out = self.model(image.to(self.device, non_blocking=True))
+
+                # Move to cpu once since we use the data on the cpu multiple times
+                cpu_out = out.detach().cpu()
+
+                print(cpu_out)
+
+
 

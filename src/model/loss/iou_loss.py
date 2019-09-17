@@ -68,7 +68,6 @@ def bounded_iou_loss(pred, target, beta=0.2, eps=1e-3):
     return loss
 
 
-@LOSSES.register_module
 class IoULoss(nn.Module):
 
     def __init__(self, eps=1e-6, reduction='mean', loss_weight=1.0):
@@ -100,7 +99,6 @@ class IoULoss(nn.Module):
         return loss
 
 
-@LOSSES.register_module
 class BoundedIoULoss(nn.Module):
 
     def __init__(self, beta=0.2, eps=1e-3, reduction='mean', loss_weight=1.0):

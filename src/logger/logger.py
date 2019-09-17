@@ -20,6 +20,7 @@ from os.path import isdir, join
 import csv
 from torch.utils.tensorboard import SummaryWriter
 from datetime import datetime
+import sys
 
 
 class Logger:
@@ -61,7 +62,7 @@ class Logger:
 
         # Set up python logger
         if logging_level == "DEBUG":
-            logging_level = logging.WARNING
+            logging_level = logging.DEBUG
         elif logging_level == "INFO":
             logging_level = logging.INFO
         elif logging_level == "WARNING":
@@ -72,15 +73,20 @@ class Logger:
             logging_level = logging.CRITICAL
         else:
             raise ValueError("Logging level specified does not exist.")
+
+        log_formatter = logging.Formatter('[%(asctime)s] :: %(levelname)s :: '
+                                          '%(message)s')
         logging.basicConfig(level=logging_level,
-                            file=join(work_dir, run_name + '.log'),
-                            format='[%(asctime)s] :: %(levelname)s :: '
-                                   '%(message)s')
+                            filename=join(work_dir, run_name + '.log'))
+
+        logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+        for handler in logging.getLogger().handlers:
+            handler.setFormatter(log_formatter)
 
         # Set up tensorboard SummaryWriter
         self.summary_writer = SummaryWriter(tf_dir)
 
-    def log_message(self, message, logging_level):
+    def log_message(self, message, logging_level="INFO"):
         """Logs a message."""
         if logging_level == "DEBUG":
             logging.debug(message)

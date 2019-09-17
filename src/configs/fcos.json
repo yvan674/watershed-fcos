@@ -1,4 +1,5 @@
 {
+  "model": "FCOS",
   "backbone": {
     "pretrained": "open-mmlab://resnet101_caffe",
     "depth": 101,
@@ -23,11 +24,9 @@
   "head": {
     "num_classes": 81,
     "in_channels": 256,
-    "max_energy": 20,
     "stacked_convs": 4,
     "feat_channels": 256,
-    "strides": [8, 16, 32, 64, 128],
-    "split_convs": true
+    "strides": [8, 16, 32, 64, 128]
   },
   "loss": {
     "classifier": {
@@ -60,8 +59,8 @@
     "step": [16, 22]
   },
   "data": {
-    "data_root": "data/coco/",
-    "imgs_per_gpu": 4,
+    "data_root": "/workspace/coco/",
+    "imgs_per_gpu": 1,
     "train": {
       "ann_file": "annotations/instances_train2017.json",
       "img_prefix": "train2017/"
@@ -75,10 +74,10 @@
       "img_prefix": "val2017/"
     }
   },
-  "work_dir": "./work_dirs/wfcos_resnet101_fpn_split_3gpu",
-  "checkpoint": "./work_dirs/wfcos_resnet101_fpn_split_3gpu/checkpoints",
+  "work_dir": "../work_dirs/fcos_resnet101_fpn_split_3gpu",
+  "checkpoint": "../work_dirs/fcos_resnet101_fpn_split_3gpu/checkpoints",
   "total_epochs": 1,
-  "num_gpus": 3,
+  "num_gpus": 1,
   "resume": false,
-  "logging_level": "DEBUG"
+  "logging_level": "INFO"
 }

@@ -20,7 +20,9 @@ class FCOS(nn.Module):
                 then does not use pretrained. Defaults to None.
         """
         super(FCOS, self).__init__()
-        self.backbone = ResNet(**backbone_cfg)
+        bb_cfg = backbone_cfg.copy()
+        del bb_cfg['pretrained']
+        self.backbone = ResNet(**bb_cfg)
 
         self.neck = FPN(**neck_cfg)
 
@@ -28,6 +30,8 @@ class FCOS(nn.Module):
 
     def forward(self, x):
         x = self.backbone(x)
+        for level in x:
+            print(level.shape)
         x = self.neck(x)
         x = self.head(x)
 
