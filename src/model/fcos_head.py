@@ -115,8 +115,10 @@ class FCOSHead(nn.Module):
                 tensors.
 
         Returns:
-            (tuple): A tuple of 3-tuples of tensors, each 3-tuple representing
-                cls_score, bbox_pred, energies of the different feature layers.
+            (tuple): A tuple of 3 lists, each tuple value representing
+                cls_score, bbox_pred, and energy. Each tuple value is a list
+                of tensors, with each value in the tensor representing a
+                feature layer.
         """
         # Use a multi_apply function to run forwards on each feats tensor
         return multi_apply(self.forward_single, feats, self.scales)

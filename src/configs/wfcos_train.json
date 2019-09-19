@@ -62,7 +62,7 @@
   },
   "data": {
     "data_root": "data/coco/",
-    "imgs_per_gpu": 4,
+    "imgs_per_gpu": 2,
     "train": {
       "ann_file": "annotations/instances_train2017.json",
       "img_prefix": "train2017/"

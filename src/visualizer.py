@@ -1,33 +1,26 @@
-"""Trainer.
+"""Visualizer.
 
-Contains the training loop.
+Visualizes Training Results.
 
-Notes:
-    Checkpoint files are written in the form: YYMMDD-HHMMSS-EEE where E is the
-    epoch number. We also set the YYMMDD-HHMMSS to be the same for the
-    entirety of a run.
 """
 import torch
-from torch.optim import SGD, Adam
 from torch.utils.data import DataLoader
 
 from os.path import getctime, isfile, split, join
 from glob import glob
-from datetime import datetime
-from time import time
+from datetime import datetime, timedelta
+from time import time,
 
 from model.wfcos import WFCOS
 from model.fcos import FCOS
-from model.loss.fcos_calculate_loss import FCOSLossCalculator
-from model.loss.wfcos_calculate_loss import WFCOSLossCalculator
 from transforms.multi_transforms import MultiCompose, MultiToTensor,\
-    MultiNormalize, MultiRandomFlip, MultiResize
+    MultiNormalize, MultiRandomFlip, MultiResize, MultiUnNormalize
 from data.cocodataset import CocoDataset
 
 from logger.logger import Logger
 
 
-class Trainer:
+class Visualizer:
     def __init__(self, cfg):
         """The training loop is run by this class.
 
@@ -53,34 +46,10 @@ class Trainer:
         # Set up model
         if cfg['model'] == "FCOS":
             self.model = FCOS(cfg["backbone"], cfg["neck"], cfg["head"])
-            self.loss_calc = FCOSLossCalculator(cfg['loss']['classifier'],
-                                                cfg['loss']['bbox'],
-                                                cfg['loss']['energy'])
         elif cfg['model'] == "WFCOS":
             self.model = WFCOS(cfg["backbone"], cfg["neck"], cfg["head"])
-            self.loss_calc = WFCOSLossCalculator(cfg['loss']['classifier'],
-                                                cfg['loss']['bbox'],
-                                                cfg['loss']['energy'])
         else:
             raise ValueError("Chosen model is not implemented.")
-
-        # Set up optimizer
-        opt_cfg = cfg['optimizer']
-        if opt_cfg['type'] == 'SGD':
-            self.optimizer = SGD(lr=opt_cfg['lr'],
-                                 weight_decay=opt_cfg['weight_decay'],
-                                 momentum=opt_cfg['momentum'],
-                                 params=self.model.parameters())
-        elif opt_cfg['type'] == 'Adam':
-            self.optimizer = Adam(params=self.model.parameters(),
-                                  lr=opt_cfg['lr'],
-                                  weight_decay=opt_cfg['weight_decay'],
-                                  eps=opt_cfg['eps'])
-        # TODO: Add lr scheduler
-
-        # Set up losses
-
-
         # Set up logger
         logged_objects = ['loss_cls', 'loss_bbox', 'loss_energy',
                           'acc_cls', 'acc_bbox', 'acc_energy',
@@ -90,7 +59,6 @@ class Trainer:
             'run_name': self.run_name,
             'work_dir': self.work_dir,
             'checkpoint_path': self.cp_prefix,
-            'optimizer': self.optimizer,
             'batch_size': self.batch_size,
             'epochs': self.epochs,
             'model': self.model
@@ -99,7 +67,6 @@ class Trainer:
                              configuration, cfg['logging_level'])
 
         # Get datasets ready and turn them into dataloaders
-        # TODO: Add transforms/augmentations
         # Notes: CocoDetection returns a tuple with the first item being the
         # image as a PIL.Image.Image object and the second item being a list of
         # the objects in the image. Each of these objects are represented as a
@@ -113,20 +80,13 @@ class Trainer:
             MultiToTensor(),
             MultiNormalize(**img_norm),
         ])
-        # TODO Custom transforms that processes sample and target at the same time
 
-        train_set = CocoDataset(join(cfg['data']['data_root'], 'images',
-                                     cfg['data']['train']['img_prefix']),
-                                join(cfg['data']['data_root'],
-                                     cfg['data']['train']['ann_file']),
-                                transforms=transforms_to_do)
-        val_set = CocoDataset(join(cfg['data']['data_root'], 'images',
-                                   cfg['data']['val']['img_prefix']),
-                              join(cfg['data']['data_root'],
-                                   cfg['data']['val']['ann_file']),
-                              transforms=transforms_to_do)
-        self.train_loader = DataLoader(train_set, self.batch_size, shuffle=True)
-        self.val_loader = DataLoader(val_set, self.batch_size, shuffle=True)
+        test_set = CocoDataset(join(cfg['data']['data_root'], 'images',
+                                    cfg['data']['val']['img_prefix']),
+                               join(cfg['data']['data_root'],
+                                    cfg['data']['val']['ann_file']),
+                               transforms=transforms_to_do)
+        self.test_loader = DataLoader(test_set, self.batch_size, shuffle=True)
 
         # Load checkpoints
         start_time = time()
@@ -203,17 +163,18 @@ class Trainer:
 
     def train(self):
         """Actually perform training."""
-        start_time = time()
-        self.logger.log_message("Starting training")
+        self.logger.log_message("Starting Inference Visualizer")
         for epoch in range(self.epochs):
-            for data in enumerate(self.train_loader):
+            for data in enumerate(self.test_loader):
                 image, target = data[1]
 
-                csv_data = []  # Reset data sent to logger at beginning.
-
+                start_time = time()
                 out = self.model(image.to(self.device, non_blocking=True))
+                duration = time() - start_time
+                self.logger.log_message("t={:.4f} seconds".format(duration))
 
-                # Move to cpu once since we use the data on the cpu multiple times
+                # Move to cpu once since we use the data on the cpu multiple
+                # times
                 out_cpu = []
                 for list in out:
                     tensor_list = []
@@ -221,4 +182,6 @@ class Trainer:
                         tensor_list.append(tensor.detach().cpu())
                     out_cpu.append(tensor_list)
 
-                loss = self.loss_calc.calculate()
+                self.logger.log_images()
+
+                input('Next?')
