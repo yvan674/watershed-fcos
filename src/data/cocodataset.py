@@ -4,23 +4,30 @@ Coco Dataset without any images with crowds. Done temporarily to prevent issues
 with the transformation.
 """
 from torchvision.datasets import CocoDetection
+from torch.utils.data import Dataset
 
-
-class CocoDataset(CocoDetection):
+class CocoDataset(Dataset):
     def __init__(self, root, annFile, transforms=None):
-        super(CocoDataset, self).__init__(root, annFile, transforms=transforms)
-        self.length = len(self)
+        self.coco = CocoDetection(root, annFile)
+        self.transforms = transforms
+        self.length = len(self.coco)
 
     def __getitem__(self, index: int):
         is_crowd = True
         while is_crowd:
             is_crowd = False
-            img, annotations = super().__getitem__(index)
+            img, annotations = self.coco[index]
             for annotation in annotations:
                 if annotation['iscrowd'] == 1:
                     is_crowd = True
                     index += 1
                     if index >= self.length:
                         index = 0
-                    break
+
+        if self.transforms is not None:
+            img, annotations = self.transforms(img, annotations)
+
         return img, annotations
+
+    def __len__(self):
+        return self.length

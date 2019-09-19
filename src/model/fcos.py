@@ -30,8 +30,6 @@ class FCOS(nn.Module):
 
     def forward(self, x):
         x = self.backbone(x)
-        for level in x:
-            print(level.shape)
         x = self.neck(x)
         x = self.head(x)
 

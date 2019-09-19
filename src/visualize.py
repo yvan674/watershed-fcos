@@ -1,7 +1,6 @@
-"""Train.
+"""Visualize.
 
-Reads configuration from a JSON file and runs the training loop using the
-configurations.
+Reads configuration from a JSON file and visualizes inference.
 """
 import argparse
 
@@ -10,7 +9,7 @@ import re
 from os import makedirs
 from os.path import exists, isdir
 
-from training.trainer import Trainer
+from utils.visualizer import Visualizer
 
 
 def parse_args():
@@ -118,19 +117,6 @@ def parse_json(file_path):
     with open(file_path, mode='r') as file:
         jc = json.loads(file.read())
 
-    # Make sure the config is safe as we run an eval on it. If it is safe, then
-    # run the eval on it.
-    if isinstance(jc["lr_config"]["warmup_ratio"], str):
-        match_obj = re.match(r'\d*\.\d* ?[/*+\-] ?\d*\.\d*',
-                             jc['lr_config']['warmup_ratio'])
-        if not match_obj:
-            raise ValueError('lr_config[warmup_ratio] has an illegal value.')
-        else:
-            jc['lr_config']['warmup_ratio'] = eval(match_obj.group())
-
-    # Debug
-    # print(json.dumps(jc, sort_keys=True, indent=4, separators=(',', ': ')))
-
     return jc
 
 
@@ -145,8 +131,8 @@ def main():
             and not exists(json_config['checkpoint']):
         makedirs(json_config['checkpoint'])
 
-    trainer = Trainer(json_config)
-    trainer.train()
+    visualizer = Visualizer(json_config)
+    visualizer.run()
 
 
 if __name__ == '__main__':

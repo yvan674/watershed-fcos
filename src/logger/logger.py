@@ -121,8 +121,8 @@ class Logger:
         """Logs images from training to tensorboard.
 
         Args:
-            images (dict): Dict with the key being the image type and the value
-                being the image itself.
+            images (dict): Dict with keys being the image name and the
+                value being the image itself.
         """
         for key in images.keys():
             self.summary_writer.add_image("{}/{}".format(self.run_name, key),

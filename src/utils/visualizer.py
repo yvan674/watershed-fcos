@@ -8,13 +8,16 @@ from torch.utils.data import DataLoader
 
 from os.path import getctime, isfile, split, join
 from glob import glob
-from datetime import datetime, timedelta
-from time import time,
+from datetime import datetime
+from time import time
 
 from model.wfcos import WFCOS
 from model.fcos import FCOS
-from transforms.multi_transforms import MultiCompose, MultiToTensor,\
-    MultiNormalize, MultiRandomFlip, MultiResize, MultiUnNormalize
+from transforms.multi_transforms import *
+from transforms.unnormalize import UnNormalize
+
+from torchvision.transforms.transforms import ToPILImage, Compose
+
 from data.cocodataset import CocoDataset
 
 from logger.logger import Logger
@@ -25,7 +28,7 @@ class Visualizer:
         """The training loop is run by this class.
 
         Args:
-            cfg (dict): Configuration file from train.py
+            cfg (dict): Configuration file from visualize.py
         """
         # Set up checkpoint name prefix
         self.cp_prefix, self.cp = self.get_checkpoint(cfg['checkpoint'])
@@ -72,19 +75,20 @@ class Visualizer:
         # the objects in the image. Each of these objects are represented as a
         # dict with keys: ['segmentation', 'area', 'iscrowd', 'image_id',
         # 'bbox', 'category_id', 'id']
-        img_norm = {'mean': [102.9801, 115.9465, 122.7717],
-                    'std': [1.0, 1.0, 1.0]}
+        self.img_norm = {'mean': [102.9801, 115.9465, 122.7717],
+                         'std': [1.0, 1.0, 1.0]}
         transforms_to_do = MultiCompose([
             MultiResize((640, 800)),
             MultiRandomFlip(0.5),
             MultiToTensor(),
-            MultiNormalize(**img_norm),
+            MultiNormalize(**self.img_norm),
         ])
 
+
         test_set = CocoDataset(join(cfg['data']['data_root'], 'images',
-                                    cfg['data']['val']['img_prefix']),
+                                    cfg['data']['test']['img_prefix']),
                                join(cfg['data']['data_root'],
-                                    cfg['data']['val']['ann_file']),
+                                    cfg['data']['test']['ann_file']),
                                transforms=transforms_to_do)
         self.test_loader = DataLoader(test_set, self.batch_size, shuffle=True)
 
@@ -161,9 +165,12 @@ class Visualizer:
         if self.cp:
             self.optimizer.load_state_dict(self.cp['optimizer'])
 
-    def train(self):
+    def run(self):
         """Actually perform training."""
         self.logger.log_message("Starting Inference Visualizer")
+
+        unnorm = UnNormalize(**self.img_norm)
+
         for epoch in range(self.epochs):
             for data in enumerate(self.test_loader):
                 image, target = data[1]
@@ -182,6 +189,14 @@ class Visualizer:
                         tensor_list.append(tensor.detach().cpu())
                     out_cpu.append(tensor_list)
 
-                self.logger.log_images()
-
+                for i in range(len(target)):
+                    for j in range(len(target[i]['image_id'])):
+                        current_image = image[j]
+                        self.logger.log_images(
+                            {str(target[i]['image_id'][j].item()) + "_normed":
+                                 current_image.numpy()})
+                        unnormed = unnorm(current_image)
+                        self.logger.log_images(
+                            {str(target[i]['image_id'][j].item()) + '_unnormed':
+                                 unnormed.numpy()})
                 input('Next?')

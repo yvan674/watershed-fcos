@@ -7,11 +7,12 @@ import random
 
 import torchvision.transforms.functional as F
 from torchvision.transforms.transforms import Normalize
+from .unnormalize import UnNormalize
 import numpy as np
 
 
 __all__ = ["MultiCompose", "MultiToTensor", "MultiNormalize", "MultiResize",
-           "MultiRandomFlip", "MultiUnNormalize"]
+           "MultiRandomFlip", "MultiUnNormalize", "MultiToPILImage"]
 
 
 class MultiCompose(object):
@@ -244,8 +245,7 @@ class MultiUnNormalize:
             mean: Per-channel mean.
             std: Per-channel standard deviation.
         """
-        self.mean = mean
-        self.std = std
+        self.u = UnNormalize(mean, std)
 
     def __call__(self, tensor, annotation):
         """Un-normalizes normalized tensors.
@@ -256,6 +256,10 @@ class MultiUnNormalize:
         Returns:
             torch.Tensor: Un-normalized image
         """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.mul_(s).add_(m)
-        return tensor, annotation
+        return self.u(tensor), annotation
+
+
+class MultiToPILImage:
+    def __call__(self, img, ann):
+        """Converts a tensor to a PIL Image."""
+        return F.to_pil_image(img), ann
