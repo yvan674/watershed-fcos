@@ -11,11 +11,11 @@ def reduce_loss(loss, reduction):
     """Reduce loss as specified.
 
     Args:
-        loss (Tensor): Elementwise loss tensor.
+        loss (Tensor): Elementwise loss preds.
         reduction (str): Options are "none", "mean" and "sum".
 
     Return:
-        Tensor: Reduced loss tensor.
+        Tensor: Reduced loss preds.
     """
     reduction_enum = F._Reduction.get_enum(reduction)
     # none: 0, elementwise_mean:1, sum: 2
@@ -77,13 +77,13 @@ def weighted_loss(loss_func):
     >>> weight = torch.Tensor([1, 0, 1])
 
     >>> l1_loss(pred, target)
-    tensor(1.3333)
+    preds(1.3333)
     >>> l1_loss(pred, target, weight)
-    tensor(1.)
+    preds(1.)
     >>> l1_loss(pred, target, reduction='none')
-    tensor([1., 1., 2.])
+    preds([1., 1., 2.])
     >>> l1_loss(pred, target, weight, avg_factor=2)
-    tensor(1.5000)
+    preds(1.5000)
     """
 
     @functools.wraps(loss_func)

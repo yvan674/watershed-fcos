@@ -15,23 +15,25 @@ class FCOS(nn.Module):
         Args:
             backbone_cfg (dict): The configuration of the backbone.
             neck_cfg (dict): The configuration of the neck.
-            head_cfg (dict): The configuration of the head.
+            head_cfg (dict): The configuration of the bbox_head.
             pretrained (str or None): Address of the pretrained model. If None,
                 then does not use pretrained. Defaults to None.
         """
         super(FCOS, self).__init__()
+        self.name = "FCOS"
+
         bb_cfg = backbone_cfg.copy()
         del bb_cfg['pretrained']
         self.backbone = ResNet(**bb_cfg)
 
         self.neck = FPN(**neck_cfg)
 
-        self.head = FCOSHead(**head_cfg)
+        self.bbox_head = FCOSHead(**head_cfg)
 
     def forward(self, x):
         x = self.backbone(x)
         x = self.neck(x)
-        x = self.head(x)
+        x = self.bbox_head(x)
 
         return x
 
@@ -44,11 +46,11 @@ class FCOS(nn.Module):
         Args:
             backbone (bool): Whether or not to initialize the backbone.
             neck (bool): Whether or not to initialize the neck.
-            head (bool): Whether or not to initialize the head.
+            head (bool): Whether or not to initialize the bbox_head.
         """
         if backbone:
             self.backbone.init_weights()
         if neck:
             self.neck.init_weights()
         if head:
-            self.head.init_weights()
+            self.bbox_head.init_weights()

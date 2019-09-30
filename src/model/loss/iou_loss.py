@@ -19,7 +19,7 @@ def iou_loss(pred, target, eps=1e-6):
         eps (float): Eps to avoid log(0).
 
     Return:
-        Tensor: Loss tensor.
+        Tensor: Loss preds.
     """
     ious = bbox_overlaps(pred, target, is_aligned=True).clamp(min=eps)
     loss = -ious.log()
@@ -32,8 +32,8 @@ def bounded_iou_loss(pred, target, beta=0.2, eps=1e-3):
     https://arxiv.org/abs/1711.00164.
 
     Args:
-        pred (tensor): Predicted bboxes.
-        target (tensor): Target bboxes.
+        pred (preds): Predicted bboxes.
+        target (preds): Target bboxes.
         beta (float): beta parameter in smoothl1.
         eps (float): eps to avoid NaN.
     """

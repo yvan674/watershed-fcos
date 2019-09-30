@@ -8,8 +8,8 @@ from .soft_nms_cpu import soft_nms_cpu
 def nms(dets, iou_thr, device_id=None):
     """Dispatch to either CPU or GPU NMS implementations.
 
-    The input can be either a torch tensor or numpy array. GPU NMS will be used
-    if the input is a gpu tensor or device_id is specified, otherwise CPU NMS
+    The input can be either a torch preds or numpy array. GPU NMS will be used
+    if the input is a gpu preds or device_id is specified, otherwise CPU NMS
     will be used. The returned type will always be the same as inputs.
 
     Arguments:
@@ -22,7 +22,7 @@ def nms(dets, iou_thr, device_id=None):
         tuple: kept bboxes and indice, which is always the same data type as
             the input.
     """
-    # convert dets (tensor or numpy array) to tensor
+    # convert dets (preds or numpy array) to preds
     if isinstance(dets, torch.Tensor):
         is_numpy = False
         dets_th = dets

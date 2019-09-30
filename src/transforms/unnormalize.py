@@ -1,6 +1,6 @@
 """Un-Normalize.
 
-Unnormalizes a tensor.
+Unnormalizes a preds.
 """
 
 
@@ -9,7 +9,7 @@ class UnNormalize:
         self.mean, self.std = mean, std
 
     def __call__(self, tensor):
-        """Un-normalizes a tensor."""
+        """Un-normalizes a preds."""
         for t, m, s in zip(tensor, self.mean, self.std):
             t.mul_(s).add_(m)
         return tensor

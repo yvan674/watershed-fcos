@@ -24,7 +24,7 @@ class DeformConvFunction(Function):
                 im2col_step=64):
         if input is not None and input.dim() != 4:
             raise ValueError(
-                "Expected 4D tensor as prediction, got {}D tensor instead.".format(
+                "Expected 4D preds as prediction, got {}D preds instead.".format(
                     input.dim()))
         ctx.stride = _pair(stride)
         ctx.padding = _pair(padding)
@@ -131,7 +131,7 @@ class ModulatedDeformConvFunction(Function):
         ctx.deformable_groups = deformable_groups
         ctx.with_bias = bias is not None
         if not ctx.with_bias:
-            bias = input.new_empty(1)  # fake tensor
+            bias = input.new_empty(1)  # fake preds
         if not input.is_cuda:
             raise NotImplementedError
         if weight.requires_grad or mask.requires_grad or offset.requires_grad \

@@ -43,8 +43,7 @@ class Logger:
             mkdir(join(work_dir, 'tf_output'))
 
         # Make the tf dir for the run
-        tf_dir = join(work_dir, 'tf_output', run_name)
-        mkdir(tf_dir)
+        tf_dir = join(work_dir, 'tf_output')
 
         self.run_name = run_name
 
@@ -117,16 +116,35 @@ class Logger:
             self.summary_writer.add_scalar("{}/{}".format(self.run_name, key),
                                            objects[key])
 
-    def log_images(self, images):
+    def log_image(self, image, type, bboxes=None, step=None):
         """Logs images from training to tensorboard.
 
+        Shape:
+            image: (C, H, W)
+
+            bboxes: (xmin, ymin, xmax, ymax)
+
         Args:
-            images (dict): Dict with keys being the image name and the
-                value being the image itself.
+            image (np.ndarray or torch.Tensor): Tensor representation of the
+                image.
+            type (str): The type of the image. Can be 'bboxes', 'classes', or
+                'energy_centerness'.
+            bboxes (np.array or torch.Tensor): Bounding boxes of detected
+                objects in the image.
+            step (int): Step number. Uses some unknown default value according
+                to the pytorch implementation if none is given.
         """
-        for key in images.keys():
-            self.summary_writer.add_image("{}/{}".format(self.run_name, key),
-                                          images[key])
+        if type is 'bboxes':
+            bboxes = bboxes.transpose(0, 1)
+            self.summary_writer.add_image_with_boxes(
+                self.run_name + '_bboxes',
+                image,
+                bboxes,
+                global_step=step
+            )
+        else:
+            self.summary_writer.add_image(self.run_name + '_' + type,
+                                          image, step)
 
     def close(self):
         """Closes any files still open."""

@@ -10,15 +10,20 @@ from os.path import getctime, isfile, split, join
 from glob import glob
 from datetime import datetime
 from time import time
+from PIL import Image
+import numpy as np
 
 from model.wfcos import WFCOS
 from model.fcos import FCOS
 from transforms.multi_transforms import *
 from transforms.unnormalize import UnNormalize
 
-from torchvision.transforms.transforms import ToPILImage, Compose
+from torchvision.transforms.transforms import ToPILImage
 
 from data.cocodataset import CocoDataset
+from utils.colormapping import map_color_values, map_alpha_values
+from utils.constants import *
+from utils.bbox_processing import resize_bboxes, bbox_select
 
 from logger.logger import Logger
 
@@ -36,12 +41,10 @@ class Visualizer:
         self.cp_prefix += "/" + self.run_name
 
         # Set up some variables
-        if self.cp:
-            self.start_epoch = self.cp['epoch']
-        else:
-            self.start_epoch = 0
+        self.start_epoch = 0
         self.epochs = cfg['total_epochs']
-        self.batch_size = cfg['data']['imgs_per_gpu'] * cfg['num_gpus']
+        self.batch_size = cfg['data']['imgs_per_gpu'] \
+                          * torch.cuda.device_count()
 
         # Set up work dir
         self.work_dir = cfg['work_dir']
@@ -69,6 +72,9 @@ class Visualizer:
         self.logger = Logger(self.work_dir, self.run_name, logged_objects,
                              configuration, cfg['logging_level'])
 
+        self.logger.log_message("Initializing Visualizer with run name: {})"
+                                .format(self.run_name))
+
         # Get datasets ready and turn them into dataloaders
         # Notes: CocoDetection returns a tuple with the first item being the
         # image as a PIL.Image.Image object and the second item being a list of
@@ -78,11 +84,13 @@ class Visualizer:
         self.img_norm = {'mean': [102.9801, 115.9465, 122.7717],
                          'std': [1.0, 1.0, 1.0]}
         transforms_to_do = MultiCompose([
-            MultiResize((640, 800)),
+            MultiResize(IMAGE_SIZE),
             MultiRandomFlip(0.5),
             MultiToTensor(),
             MultiNormalize(**self.img_norm),
         ])
+
+        self.unnorm = UnNormalize(**self.img_norm)
 
 
         test_set = CocoDataset(join(cfg['data']['data_root'], 'images',
@@ -99,15 +107,12 @@ class Visualizer:
                                 .format(int((time() - start_time) * 1000)))
 
         # Set up device
-        if torch.cuda.is_available():
-            self.device = torch.device("cuda")
-            cuda_count = torch.cuda.device_count()
+        if CUDA_COUNT > 0:
             self.logger.log_message("Found {} GPU{}. Running using CUDA."
-                                    .format(cuda_count,
-                                            "s" if cuda_count > 1 else ""))
-            self.model.to(self.device, non_blocking=True)
+                                    .format(CUDA_COUNT,
+                                            "s" if CUDA_COUNT > 1 else ""))
+            self.model.to(DEVICE, non_blocking=True)
         else:
-            self.device = torch.device("cpu")
             self.logger.log_message("CUDA compatible GPU not found. Running on "
                                     "CPU.", "WARNING")
 
@@ -157,7 +162,7 @@ class Visualizer:
                                         "INFO")
                 self.model.init_weights(True, True, True)
         else:
-            self.logger.log_message("Loading checkpoint from {}".format(self.cp))
+            self.logger.log_message("Loading checkpoint from file.")
             self.model.load_state_dict(self.cp['state_dict'])
 
     def load_optimizer_checkpoint(self):
@@ -169,16 +174,25 @@ class Visualizer:
         """Actually perform training."""
         self.logger.log_message("Starting Inference Visualizer")
 
-        unnorm = UnNormalize(**self.img_norm)
-
         for epoch in range(self.epochs):
             for data in enumerate(self.test_loader):
                 image, target = data[1]
 
                 start_time = time()
-                out = self.model(image.to(self.device, non_blocking=True))
+                out = self.model(image.to(DEVICE, non_blocking=True))
                 duration = time() - start_time
-                self.logger.log_message("t={:.4f} seconds".format(duration))
+
+                """Notes:
+                The network processes the image and returns a 3-member list as
+                output. This list is the class, bbox, and centerness/energy
+                returned.
+                
+                Each of these three members is a 5-tuple. The 5-tuple represents
+                the different heads for each feature map scale.
+                """
+
+                self.logger.log_message("Inference ran t={:.4f} seconds"
+                                        .format(duration))
 
                 # Move to cpu once since we use the data on the cpu multiple
                 # times
@@ -189,14 +203,156 @@ class Visualizer:
                         tensor_list.append(tensor.detach().cpu())
                     out_cpu.append(tensor_list)
 
-                for i in range(len(target)):
-                    for j in range(len(target[i]['image_id'])):
-                        current_image = image[j]
-                        self.logger.log_images(
-                            {str(target[i]['image_id'][j].item()) + "_normed":
-                                 current_image.numpy()})
-                        unnormed = unnorm(current_image)
-                        self.logger.log_images(
-                            {str(target[i]['image_id'][j].item()) + '_unnormed':
-                                 unnormed.numpy()})
+                # Start processing class and centerness images.
+                start_time = time()
+                img_cls, img_centerness = self.process_images(image, out_cpu)
+                duration = time() - start_time
+
+                self.logger.log_message("processed class and centerness "
+                                        "t={:.4f})".format(duration))
+
+                start_time = time()
+                if self.model.name == 'FCOS':
+                    # Use nms to get bboxes
+                    all_bboxes = []
+                    bbox_selected = bbox_select(out[2], .99)
+
+                    for i in range(out[1][0].shape[0]):
+                        # Append n lists to bboxes, where n is the batch size.
+                        all_bboxes.append([])
+
+                    for head in enumerate(out[1]):
+                        m = torch.tensor(
+                            [IMAGE_SIZE[1] / head[1][0][0].shape[1],
+                             IMAGE_SIZE[0] / head[1][0][0].shape[0]],
+                            dtype=torch.float,
+                            device=DEVICE
+                        )
+
+                        for batch_value in range(head[1].shape[0]):
+                            # Perform operations to turn bboxes into the
+                            # (l, t, r, b) format for the logger and only take
+                            # the top nth percentile of bboxes.
+                            out_bboxes = resize_bboxes(
+                                head[1][batch_value], m,
+                                bbox_selected[head[0]][batch_value])
+                            # Append to the nth all_bboxes list, so the bboxes
+                            # are separated by image.
+                            all_bboxes[batch_value].append(out_bboxes)
+                else:
+                    raise NotImplementedError
+
+                for batch in range(len(all_bboxes)):
+                    all_bboxes[batch] = torch.cat(all_bboxes[batch], 1)
+
+                self.logger.log_message("processed bboxes t={:.4f}"
+                                        .format(time() - start_time))
+
+                start_time = time()
+                for i in range(len(all_bboxes)):
+                    # i is the current batch image number.
+                    # We send this to this with all the bboxes to tensorboard.
+                    self.logger.log_image(image[i],
+                                          'bboxes',
+                                          all_bboxes[i],
+                                          data[0])
+
+                self.logger.log_message("Sent boxes to tensorboard t={:.4f}"
+                                        .format(time() - start_time))
+
+                # Now send the segmentation and centerness overlays to
+                # tensorboard
+                start_time = time()
+                for x in img_cls:
+                    self.logger.log_image(x, 'classes',
+                                          step=data[0])
+                for x in img_centerness:
+                    self.logger.log_image(x, 'energy_centerness',
+                                          step=data[0])
+
+                self.logger.log_message("sent classes and energy/centerness to "
+                                        "tensorboard t={:.4f}"
+                                        .format(time() - start_time))
                 input('Next?')
+
+    def process_images(self, raw_image, out):
+        """Processes images and returns drawn version of the images overlaid
+        with classes, and centerness/energy
+
+        Args:
+            out:
+            target:
+
+        Returns:
+            tuple: A 2-tuple of the classes overlaid on the image and
+                the centerness/energy overlaid on the image. Both are of type
+                numpy.array. Each tuple element contains a list of the classes
+                and centerness values according to each head.
+        """
+        # images is a 2-tuple. Each element of the tuple is a list with the
+        # length being equal to the number of heads used in the model. Each
+        # element of the list is thus the labeling of the corresponding head.
+        cls_images = []
+        energy_images = []
+        num_heads = len(out[0])
+        batch_size = len(raw_image)
+        for batch_value in range(batch_size):
+            # Turn the preds into a PIL image. First unnormalize, then turn
+            # to pil image.
+            img = ToPILImage()(self.unnorm(raw_image[batch_value]))
+
+            # Iterate through the heads
+            for head in range(num_heads):
+                # Turn the class labels into an image
+                # First get the labels as an argmax
+                cls_head = out[0][head][batch_value].argmax(1).numpy()
+
+                # Then map the values to a color
+                cls_head = map_color_values(cls_head, NUM_CLASSES)
+                cls_head = Image.fromarray(cls_head)
+                # And resize the cls_head to the same size as the raw image
+                cls_head = cls_head.resize(img.size)
+
+                # Finally, blend the raw image with the cls_head and append to
+                # the list
+                temp_img = Image.blend(img, cls_head, 0.5)
+                temp_img = np.array(temp_img).astype('uint8')
+                temp_img = temp_img.transpose((2, 0, 1))
+                cls_images.append(temp_img)
+
+                # Now get the energy
+                energy_head = out[2][head][batch_value]
+                if self.model.name == "WFCOS":
+                    n = self.model.bbox_head.max_energy
+                    # If it's WFCOS, get the argmax.
+                    energy_head = energy_head.argmax(1).numpy()
+                else:
+                    energy_head = energy_head.numpy()
+                    # If it's FCOS, transpose and reshape it.
+                    energy_head = energy_head.transpose((1, 2, 0))
+                    energy_head = energy_head.reshape((energy_head.shape[0],
+                                                       energy_head.shape[1]))
+
+                    # Then normalize it to the interval [0, 1]
+                    energy_head += abs(energy_head.min())
+                    n = energy_head.max()
+
+                # Map the value to colors
+                energy_head = map_alpha_values(energy_head,
+                                               np.array([255, 0, 0]), n)
+
+                # And turn it into an image
+                energy_head = Image.fromarray(energy_head, mode='RGBA')
+                # Resize it to the same size as the original image.
+                energy_head = energy_head.resize(img.size)
+
+                # Overlay the red on top of the original image
+                temp_img = img.copy()
+                temp_img.paste(energy_head, (0, 0), energy_head)
+
+                # Finally put it into the images list
+                temp_img = np.array(temp_img).astype('uint8')
+                temp_img = temp_img.transpose((2, 0, 1))
+                energy_images.append(temp_img)
+
+        return cls_images, energy_images

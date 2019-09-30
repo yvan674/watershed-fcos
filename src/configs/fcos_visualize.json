@@ -54,7 +54,6 @@
   "work_dir": "/workspace/work_dirs/fcos_visualize",
   "checkpoint": "/workspace/work_dirs/fcos_visualize/checkpoints",
   "total_epochs": 1,
-  "num_gpus": 3,
   "resume": true,
   "logging_level": "INFO"
 }

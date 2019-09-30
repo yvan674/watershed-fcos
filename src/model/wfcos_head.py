@@ -26,7 +26,7 @@ class WFCOSHead(nn.Module):
                  norm_cfg=None,
                  split_convs=False):
         """
-        Creates a head based on FCOS that uses an energies map, not centerness
+        Creates a bbox_head based on FCOS that uses an energies map, not centerness
         Args:
             num_classes (int): Number of classes to output.
             in_channels (int): Number of innput channels.
@@ -160,7 +160,7 @@ class WFCOSHead(nn.Module):
             (tuple): A tuple of 3-tuples of tensors, each 3-tuple representing
                 cls_score, bbox_pred, energies of the different feature layers.
         """
-        # Use a multi_apply function to run forwards on each feats tensor
+        # Use a multi_apply function to run forwards on each feats preds
         return multi_apply(self.forward_single, feats, self.scales)
 
 

@@ -41,7 +41,7 @@ class MultiCompose(object):
 
 
 class MultiToTensor(object):
-    """Convert a ``PIL Image`` or ``numpy.ndarray`` to tensor.
+    """Convert a ``PIL Image`` or ``numpy.ndarray`` to preds.
 
     Converts a PIL Image or numpy.ndarray (H x W x C) in the range
     [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0]
@@ -59,7 +59,7 @@ class MultiToTensor(object):
     def __call__(self, pic, target):
         """
         Args:
-            pic (PIL Image or numpy.ndarray): Image to be converted to tensor.
+            pic (PIL Image or numpy.ndarray): Image to be converted to preds.
             target (object array): Annotation array as returned by
                 coco.loadAnns.
 
@@ -261,5 +261,5 @@ class MultiUnNormalize:
 
 class MultiToPILImage:
     def __call__(self, img, ann):
-        """Converts a tensor to a PIL Image."""
+        """Converts a preds to a PIL Image."""
         return F.to_pil_image(img), ann

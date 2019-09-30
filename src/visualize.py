@@ -48,13 +48,13 @@ def parse_json(file_path):
         - extra_convs_on_inputs (bool): Add convolutions to prediction or not.
         - num_outs (int): Number of output tensors.
         - relu_before_extra_convs (bool): Whether or not to add a relu layer.
-    - head:
+    - bbox_head:
         - num_classes (int): Number of classes to output.
-        - in_channels (int): Number of channels in the prediction of each head.
+        - in_channels (int): Number of channels in the prediction of each bbox_head.
         - max_energy (int): Number of quantized energy units in the energy map.
         - stacked_convs (int): Number of stacked convolutions to include.
         - feat_channels (int): Number of channels in the stacked convolutions.
-        - strides (tuple): Strides applied to each head. Length must be equal to
+        - strides (tuple): Strides applied to each bbox_head. Length must be equal to
                            the num_outs value in neck.
         - split_convs (bool): Whether or not to split the stacked convolutions
                               for the classification and energy tensors.

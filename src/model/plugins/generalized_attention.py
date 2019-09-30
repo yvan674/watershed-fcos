@@ -17,7 +17,7 @@ class GeneralizedAttention(nn.Module):
         in_dim (int): Channels of the prediction feature map.
         spatial_range (int): The spatial range.
             -1 indicates no spatial range constraint.
-        num_heads (int): The head number of empirical_attention module.
+        num_heads (int): The bbox_head number of empirical_attention module.
         position_embedding_dim (int): The position embedding dimension.
         position_magnitude (int): A multiplier acting on coord difference.
         kv_stride (int): The feature stride acting on key/value feature map.
