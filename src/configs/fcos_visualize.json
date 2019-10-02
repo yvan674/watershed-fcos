@@ -45,7 +45,7 @@
   },
   "data": {
     "data_root": "/workspace/coco/",
-    "imgs_per_gpu": 2,
+    "imgs_per_gpu": 1,
     "test": {
       "ann_file": "annotations/instances_val2017.json",
       "img_prefix": "val2017/"

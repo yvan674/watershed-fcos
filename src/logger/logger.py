@@ -134,17 +134,17 @@ class Logger:
             step (int): Step number. Uses some unknown default value according
                 to the pytorch implementation if none is given.
         """
-        if type is 'bboxes':
-            bboxes = bboxes.transpose(0, 1)
-            self.summary_writer.add_image_with_boxes(
-                self.run_name + '_bboxes',
-                image,
-                bboxes,
-                global_step=step
-            )
-        else:
-            self.summary_writer.add_image(self.run_name + '_' + type,
-                                          image, step)
+        # if type is 'bboxes' and bboxes:
+        #     bboxes = bboxes.transpose(0, 1)
+        #     self.summary_writer.add_image_with_boxes(
+        #         self.run_name + '_bboxes',
+        #         image,
+        #         bboxes,
+        #         global_step=step
+        #     )
+        # else:
+        self.summary_writer.add_image(self.run_name + '_' + type,
+                                      image, step)
 
     def close(self):
         """Closes any files still open."""

@@ -47,7 +47,6 @@ def bbox_select(ec_map, threshold=0.99):
         flattened_heads[batch] = torch.cat(flattened_heads[batch])
         k = int(threshold * flattened_heads[batch].shape[0])
         batch_thresholds.append(flattened_heads[batch].kthvalue(k))
-    del flattened_heads
     # Now we have a kth percentile value for each batch stored in
     # batch_thresholds
 

@@ -23,7 +23,8 @@ from torchvision.transforms.transforms import ToPILImage
 from data.cocodataset import CocoDataset
 from utils.colormapping import map_color_values, map_alpha_values
 from utils.constants import *
-from utils.bbox_processing import resize_bboxes, bbox_select
+from bboxes import draw_boxes
+from bboxes.bbox import BoundingBox
 
 from logger.logger import Logger
 
@@ -194,85 +195,129 @@ class Visualizer:
                 self.logger.log_message("Inference ran t={:.4f} seconds"
                                         .format(duration))
 
-                # Move to cpu once since we use the data on the cpu multiple
-                # times
-                out_cpu = []
-                for list in out:
-                    tensor_list = []
-                    for tensor in list:
-                        tensor_list.append(tensor.detach().cpu())
-                    out_cpu.append(tensor_list)
+                out_cls = out[0]
+                out_bbox = out[1]
+                out_energy = out[2]
 
-                # Start processing class and centerness images.
+                # Start processing bboxes
                 start_time = time()
-                img_cls, img_centerness = self.process_images(image, out_cpu)
-                duration = time() - start_time
+                bboxes = []  # List holding BoundingBox objects.
+                for i in range(self.batch_size):
+                    bboxes.append([])
 
-                self.logger.log_message("processed class and centerness "
-                                        "t={:.4f})".format(duration))
-
-                start_time = time()
-                if self.model.name == 'FCOS':
-                    # Use nms to get bboxes
-                    all_bboxes = []
-                    bbox_selected = bbox_select(out[2], .99)
-
-                    for i in range(out[1][0].shape[0]):
-                        # Append n lists to bboxes, where n is the batch size.
-                        all_bboxes.append([])
-
-                    for head in enumerate(out[1]):
-                        m = torch.tensor(
-                            [IMAGE_SIZE[1] / head[1][0][0].shape[1],
-                             IMAGE_SIZE[0] / head[1][0][0].shape[0]],
-                            dtype=torch.float,
-                            device=DEVICE
+                for h in range(len(out_cls)):
+                    m = torch.tensor(
+                        [IMAGE_SIZE[1] / out_cls[h].shape[3],
+                         IMAGE_SIZE[0] / out_cls[h].shape[2]],
+                        dtype=torch.float,
+                        device=DEVICE
+                    )
+                    for b in range(self.batch_size):
+                        bboxes[b].append(
+                            BoundingBox(out_bbox[h][b],
+                                        out_cls[h][b],
+                                        out_energy[h][b],
+                                        m)
                         )
-
-                        for batch_value in range(head[1].shape[0]):
-                            # Perform operations to turn bboxes into the
-                            # (l, t, r, b) format for the logger and only take
-                            # the top nth percentile of bboxes.
-                            out_bboxes = resize_bboxes(
-                                head[1][batch_value], m,
-                                bbox_selected[head[0]][batch_value])
-                            # Append to the nth all_bboxes list, so the bboxes
-                            # are separated by image.
-                            all_bboxes[batch_value].append(out_bboxes)
-                else:
-                    raise NotImplementedError
-
-                for batch in range(len(all_bboxes)):
-                    all_bboxes[batch] = torch.cat(all_bboxes[batch], 1)
-
                 self.logger.log_message("processed bboxes t={:.4f}"
                                         .format(time() - start_time))
 
+                # Send pictures to tensorboard
                 start_time = time()
-                for i in range(len(all_bboxes)):
-                    # i is the current batch image number.
-                    # We send this to this with all the bboxes to tensorboard.
-                    self.logger.log_image(image[i],
-                                          'bboxes',
-                                          all_bboxes[i],
-                                          data[0])
+                for b in range(self.batch_size):
+                    drawn_image = draw_boxes(image[b], bboxes[b])
+                    drawn_image = torch.from_numpy(np.array(drawn_image))\
+                        .permute(2, 0, 1)
 
-                self.logger.log_message("Sent boxes to tensorboard t={:.4f}"
+                    self.logger.log_image(drawn_image, 'bboxes', step=data[0])
+                self.logger.log_message("bboxes sent to tensorboard t={:.4f}"
                                         .format(time() - start_time))
 
-                # Now send the segmentation and centerness overlays to
-                # tensorboard
-                start_time = time()
-                for x in img_cls:
-                    self.logger.log_image(x, 'classes',
-                                          step=data[0])
-                for x in img_centerness:
-                    self.logger.log_image(x, 'energy_centerness',
-                                          step=data[0])
+                # Move to cpu once since we use the data on the cpu multiple
+                # # times
+                # out_cpu = []
+                # for list in out:
+                #     tensor_list = []
+                #     for tensor in list:
+                #         tensor_list.append(tensor.detach().cpu())
+                #     out_cpu.append(tensor_list)
+                #
 
-                self.logger.log_message("sent classes and energy/centerness to "
-                                        "tensorboard t={:.4f}"
-                                        .format(time() - start_time))
+
+                # # Start processing class and centerness images.
+                # start_time = time()
+                # img_cls, img_centerness = self.process_images(image, out_cpu)
+                # duration = time() - start_time
+                #
+                # self.logger.log_message("processed class and centerness "
+                #                         "t={:.4f})".format(duration))
+                #
+                # start_time = time()
+                # if self.model.name == 'FCOS':
+                #     # Use nms to get bboxes
+                #     all_bboxes = []
+                #     bbox_selected = bbox_select(out[2], .999)
+                #
+                #     for i in range(out[1][0].shape[0]):
+                #         # Append n lists to bboxes, where n is the batch size.
+                #         all_bboxes.append([])
+                #
+                #     for head in enumerate(out[1]):
+                #         m = torch.tensor(
+                #             [IMAGE_SIZE[1] / head[1][0][0].shape[1],
+                #              IMAGE_SIZE[0] / head[1][0][0].shape[0]],
+                #             dtype=torch.float,
+                #             device=DEVICE
+                #         )
+                #
+                #         for batch_value in range(head[1].shape[0]):
+                #             # Perform operations to turn bboxes into the
+                #             # (l, t, r, b) format for the logger and only take
+                #             # the top nth percentile of bboxes.
+                #             out_bboxes = resize_bboxes(
+                #                 head[1][batch_value], m,
+                #                 bbox_selected[head[0]][batch_value])
+                #             # Append to the nth all_bboxes list, so the bboxes
+                #             # are separated by image.
+                #             all_bboxes[batch_value].append(
+                #                 BoundingBox(head[1][batch_value],
+                #                             head[0][batch_value],
+                #                             head[2][batch_value],
+                #                             m))
+                # else:
+                #     raise NotImplementedError
+                #
+                # for batch in range(len(all_bboxes)):
+                #     all_bboxes[batch] = torch.cat(all_bboxes[batch], 1)
+                #
+                # self.logger.log_message("processed bboxes t={:.4f}"
+                #                         .format(time() - start_time))
+                #
+                # start_time = time()
+                # for i in range(len(all_bboxes)):
+                #     # i is the current batch image number.
+                #     # We send this to this with all the bboxes to tensorboard.
+                #     self.logger.log_image(image[i],
+                #                           'bboxes',
+                #                           all_bboxes[i],
+                #                           data[0])
+                #
+                # self.logger.log_message("Sent boxes to tensorboard t={:.4f}"
+                #                         .format(time() - start_time))
+                #
+                # # Now send the segmentation and centerness overlays to
+                # # tensorboard
+                # start_time = time()
+                # for x in img_cls:
+                #     self.logger.log_image(x, 'classes',
+                #                           step=data[0])
+                # for x in img_centerness:
+                #     self.logger.log_image(x, 'energy_centerness',
+                #                           step=data[0])
+                #
+                # self.logger.log_message("sent classes and energy/centerness to "
+                #                         "tensorboard t={:.4f}"
+                #                         .format(time() - start_time))
                 input('Next?')
 
     def process_images(self, raw_image, out):
