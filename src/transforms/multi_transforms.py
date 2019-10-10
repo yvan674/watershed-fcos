@@ -84,7 +84,7 @@ class MultiResize(object):
         self.area = self.h * self.w
 
     def __call__(self, img, target):
-        """Resizes the img and target to the same size.
+        """Resizes the image and target to the same size.
 
         Args:
             img (PIL.Image.Image): A PIL Image.

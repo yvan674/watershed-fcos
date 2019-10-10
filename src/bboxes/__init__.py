@@ -1,34 +1,57 @@
-from PIL import ImageDraw
+from PIL import ImageDraw, ImageFont
 from bboxes.classes_lookup import *
 from utils.colormapping import map_color_value
+from utils.constants import *
+
+from os import getcwd
 
 
-def draw_boxes(image, bounding_boxes):
+def draw_boxes(image, bounding_boxes, use_watershed=False, threshold=0.8,
+               target=False):
     """Draw all bounding_boxes on the image along with their class.
 
     Args:
         image (PIL.Image.Image): Image to draw the bounding boxes on
-        bounding_boxes (list): List of BoundingBox objects. Each BoundingBox
-            object represents the bounding box outputs of a head.
+        bounding_boxes (bbox.bbox.BoundingBox): List of BoundingBox objects.
+            Each BoundingBox object contains all bounding boxes of an image.
+        use_watershed (bool): Use watershed or a simple threshold value
+        threshold (float): Threshold or percentage value for suppression.
+        target (bool): If the image comes from a target source
 
     Returns:
         PIL.Image.Image: Image with bounding boxes drawn on top.
     """
-    draw = ImageDraw.Draw(image)
+    img = image.copy()
+    draw = ImageDraw.Draw(img)
 
-    for bbs in bounding_boxes:
-        for bb in bbs.bboxes:
-            bb = bb.numpy()
-            # Map category to color
-            color = map_color_value(bb[4], 80)
+    if use_watershed:
+        pruned_bboxes = bounding_boxes.get_watershed(threshold)
+    else:
+        pruned_bboxes = bounding_boxes.get_suppressed(threshold)
+    pruned_bboxes = pruned_bboxes.detach().to(device='cpu').numpy()
+
+    # pruned_bboxes = bounding_boxes.detach().numpy()
+
+    for bb in pruned_bboxes:
+        # Map category to color
+        if True: #int(bb[4]):
+            color = tuple(map_color_value(bb[4], 80))
 
             # Get category class label
-            label = CATS[bb[4]]["name"]
-
-            # Draw the bounding box
-            draw.rectangle(bb[0:4], outline=color)
+            if not target:
+                label = CLASSES[int(bb[4])]
+            else:
+                label = CAT_DICT[int(bb[4])]
 
             # Draw the category label
-            draw.text(bb[0:2], label, fill=(255, 255, 255))
-            draw.rectangle([bb[0], bb[1], bb[0] + 50, bb[1] + 20])
-    return image
+            text_size = draw.textsize(label, FONT)
+            draw.rectangle([bb[0], bb[1],
+                            bb[0] + 6 + text_size[0],
+                            bb[1] + 6 + text_size[1]],
+                           fill=(0, 0, 0))
+            draw.text(bb[0:2] + 3, label, fill=(255, 255, 255), font=FONT)
+
+            # Draw the bounding box
+            draw.rectangle(bb[0:4], outline=color, width=4)
+
+    return img

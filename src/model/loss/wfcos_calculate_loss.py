@@ -270,7 +270,7 @@ class WFCOSLossCalculator:
             points=concat_points,
             regress_ranges=concat_regress_ranges)
 
-        # split to per img, per level
+        # split to per image, per level
         num_points = [center.size(0) for center in points]
         labels_list = [labels.split(num_points, 0) for labels in labels_list]
         bbox_targets_list = [

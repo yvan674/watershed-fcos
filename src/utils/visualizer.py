@@ -21,10 +21,14 @@ from transforms.unnormalize import UnNormalize
 from torchvision.transforms.transforms import ToPILImage
 
 from data.cocodataset import CocoDataset
-from utils.colormapping import map_color_values, map_alpha_values
+from utils.colormapping import map_color_values, map_alpha_values,\
+    map_bool_values
 from utils.constants import *
 from bboxes import draw_boxes
 from bboxes.bbox import BoundingBox
+from utils.sheet import process_sheet
+
+from PIL import ImageDraw
 
 from logger.logger import Logger
 
@@ -86,7 +90,7 @@ class Visualizer:
                          'std': [1.0, 1.0, 1.0]}
         transforms_to_do = MultiCompose([
             MultiResize(IMAGE_SIZE),
-            MultiRandomFlip(0.5),
+            # MultiRandomFlip(0.5),
             MultiToTensor(),
             MultiNormalize(**self.img_norm),
         ])
@@ -116,6 +120,8 @@ class Visualizer:
         else:
             self.logger.log_message("CUDA compatible GPU not found. Running on "
                                     "CPU.", "WARNING")
+
+        self.threshold = THRESHOLD
 
     @staticmethod
     def get_checkpoint(fp):
@@ -195,209 +201,256 @@ class Visualizer:
                 self.logger.log_message("Inference ran t={:.4f} seconds"
                                         .format(duration))
 
-                out_cls = out[0]
-                out_bbox = out[1]
-                out_energy = out[2]
+                # Rearrange network out to tensor in the shape:
+                # [batch, head, value, h, w]
+                out_cls = self.reshape_out(out[0])
+                out_bbox = self.reshape_out(out[1])
+                out_scores = self.reshape_out(out[2])
 
-                # Start processing bboxes
+                processed_images = self.process_images(image, out_bbox, out_cls,
+                                                       out_scores, target)
+
                 start_time = time()
-                bboxes = []  # List holding BoundingBox objects.
-                for i in range(self.batch_size):
-                    bboxes.append([])
-
-                for h in range(len(out_cls)):
-                    m = torch.tensor(
-                        [IMAGE_SIZE[1] / out_cls[h].shape[3],
-                         IMAGE_SIZE[0] / out_cls[h].shape[2]],
-                        dtype=torch.float,
-                        device=DEVICE
-                    )
-                    for b in range(self.batch_size):
-                        bboxes[b].append(
-                            BoundingBox(out_bbox[h][b],
-                                        out_cls[h][b],
-                                        out_energy[h][b],
-                                        m)
-                        )
-                self.logger.log_message("processed bboxes t={:.4f}"
+                sheets = process_sheet(processed_images)
+                self.logger.log_message("processed sheets. t={:.4f}"
                                         .format(time() - start_time))
 
-                # Send pictures to tensorboard
-                start_time = time()
-                for b in range(self.batch_size):
-                    drawn_image = draw_boxes(image[b], bboxes[b])
-                    drawn_image = torch.from_numpy(np.array(drawn_image))\
-                        .permute(2, 0, 1)
 
-                    self.logger.log_image(drawn_image, 'bboxes', step=data[0])
-                self.logger.log_message("bboxes sent to tensorboard t={:.4f}"
+                start_time = time()
+                for sheet in sheets:
+                    self.logger.log_image(sheet, 'sheet', step=data[0])
+                self.logger.log_message("sent sheets to tensorboard. t={:.4f}"
                                         .format(time() - start_time))
 
-                # Move to cpu once since we use the data on the cpu multiple
-                # # times
-                # out_cpu = []
-                # for list in out:
-                #     tensor_list = []
-                #     for tensor in list:
-                #         tensor_list.append(tensor.detach().cpu())
-                #     out_cpu.append(tensor_list)
-                #
+                try:
+                    val = input('Change threshold? If no, simply press enter.\n')
+                    if val:
+                        self.threshold = float(val)
+                    else:
+                        print("Not changing value.")
+                except ValueError:
+                    print("Not changing value.")
 
 
-                # # Start processing class and centerness images.
-                # start_time = time()
-                # img_cls, img_centerness = self.process_images(image, out_cpu)
-                # duration = time() - start_time
-                #
-                # self.logger.log_message("processed class and centerness "
-                #                         "t={:.4f})".format(duration))
-                #
-                # start_time = time()
-                # if self.model.name == 'FCOS':
-                #     # Use nms to get bboxes
-                #     all_bboxes = []
-                #     bbox_selected = bbox_select(out[2], .999)
-                #
-                #     for i in range(out[1][0].shape[0]):
-                #         # Append n lists to bboxes, where n is the batch size.
-                #         all_bboxes.append([])
-                #
-                #     for head in enumerate(out[1]):
-                #         m = torch.tensor(
-                #             [IMAGE_SIZE[1] / head[1][0][0].shape[1],
-                #              IMAGE_SIZE[0] / head[1][0][0].shape[0]],
-                #             dtype=torch.float,
-                #             device=DEVICE
-                #         )
-                #
-                #         for batch_value in range(head[1].shape[0]):
-                #             # Perform operations to turn bboxes into the
-                #             # (l, t, r, b) format for the logger and only take
-                #             # the top nth percentile of bboxes.
-                #             out_bboxes = resize_bboxes(
-                #                 head[1][batch_value], m,
-                #                 bbox_selected[head[0]][batch_value])
-                #             # Append to the nth all_bboxes list, so the bboxes
-                #             # are separated by image.
-                #             all_bboxes[batch_value].append(
-                #                 BoundingBox(head[1][batch_value],
-                #                             head[0][batch_value],
-                #                             head[2][batch_value],
-                #                             m))
-                # else:
-                #     raise NotImplementedError
-                #
-                # for batch in range(len(all_bboxes)):
-                #     all_bboxes[batch] = torch.cat(all_bboxes[batch], 1)
-                #
-                # self.logger.log_message("processed bboxes t={:.4f}"
-                #                         .format(time() - start_time))
-                #
-                # start_time = time()
-                # for i in range(len(all_bboxes)):
-                #     # i is the current batch image number.
-                #     # We send this to this with all the bboxes to tensorboard.
-                #     self.logger.log_image(image[i],
-                #                           'bboxes',
-                #                           all_bboxes[i],
-                #                           data[0])
-                #
-                # self.logger.log_message("Sent boxes to tensorboard t={:.4f}"
-                #                         .format(time() - start_time))
-                #
-                # # Now send the segmentation and centerness overlays to
-                # # tensorboard
-                # start_time = time()
-                # for x in img_cls:
-                #     self.logger.log_image(x, 'classes',
-                #                           step=data[0])
-                # for x in img_centerness:
-                #     self.logger.log_image(x, 'energy_centerness',
-                #                           step=data[0])
-                #
-                # self.logger.log_message("sent classes and energy/centerness to "
-                #                         "tensorboard t={:.4f}"
-                #                         .format(time() - start_time))
-                input('Next?')
+    def reshape_out(self, tensor_list):
+        """Reshapes network to a list representing batches.
 
-    def process_images(self, raw_image, out):
+        Args:
+            tensor_list (list): List of tensors given by each of the network
+                outputs
+
+        Returns:
+            list: List containing a list of tensors with the shape
+                out[batch][head][torch.Tensor.shape=[value, h, w]]
+        """
+        out_list = []
+        num_heads = len(tensor_list)
+        for batch in range(self.batch_size):
+            out_list.append([])
+
+        for head in range(num_heads):
+            for b in range(self.batch_size):
+                out_list[b].append(tensor_list[head][b])
+
+        return out_list
+
+
+    def process_images(self, raw_image, out_bbox, out_cls, out_scores, target):
         """Processes images and returns drawn version of the images overlaid
         with classes, and centerness/energy
 
         Args:
-            out:
-            target:
+            out_bbox (list): list of tensors with the network output of the
+                bbox predictions. Each list item represents a single batch.
+            out_cls (list): list of tensor with the network output of the
+                class predictions. Each list item represents a single batch.
+            out_scores (list): list of tensor with the network output of the
+                score predictions. Each list item represents a single batch.
+            target (list): List of dicts that represents the target bboxes.
 
         Returns:
-            tuple: A 2-tuple of the classes overlaid on the image and
-                the centerness/energy overlaid on the image. Both are of type
-                numpy.array. Each tuple element contains a list of the classes
-                and centerness values according to each head.
+            list: A list of dictionaries with all the elements needed to create
+                the visualization sheet. Each dictionary represents one image.
         """
-        # images is a 2-tuple. Each element of the tuple is a list with the
-        # length being equal to the number of heads used in the model. Each
-        # element of the list is thus the labeling of the corresponding head.
-        cls_images = []
-        energy_images = []
-        num_heads = len(out[0])
-        batch_size = len(raw_image)
-        for batch_value in range(batch_size):
+        out_list = []
+        for b in range(self.batch_size):
             # Turn the preds into a PIL image. First unnormalize, then turn
             # to pil image.
-            img = ToPILImage()(self.unnorm(raw_image[batch_value]))
+            img = ToPILImage()(self.unnorm(raw_image[b]))
+            d = {'preds': None, 'target': None, 'score': [], 'classes': []}
 
-            # Iterate through the heads
-            for head in range(num_heads):
-                # Turn the class labels into an image
-                # First get the labels as an argmax
-                cls_head = out[0][head][batch_value].argmax(1).numpy()
+            # Process bboxes
+            start_time = time()
+            d['preds'] = self.process_preds(img, out_bbox[b],
+                                            out_cls[b], out_scores[b])
 
-                # Then map the values to a color
-                cls_head = map_color_values(cls_head, NUM_CLASSES)
-                cls_head = Image.fromarray(cls_head)
-                # And resize the cls_head to the same size as the raw image
-                cls_head = cls_head.resize(img.size)
+            d['target'] = self.process_target(img, target)
+            self.logger.log_message("processed bounding boxes t={:.4f}"
+                                    .format(time() - start_time))
 
-                # Finally, blend the raw image with the cls_head and append to
-                # the list
-                temp_img = Image.blend(img, cls_head, 0.5)
-                temp_img = np.array(temp_img).astype('uint8')
-                temp_img = temp_img.transpose((2, 0, 1))
-                cls_images.append(temp_img)
+            # Process scores
+            start_time = time()
+            d['score'] = self.process_scores(img, out_scores[b])
+            self.logger.log_message("processed scores t={:.4f}"
+                                    .format(time() - start_time))
 
-                # Now get the energy
-                energy_head = out[2][head][batch_value]
-                if self.model.name == "WFCOS":
-                    n = self.model.bbox_head.max_energy
-                    # If it's WFCOS, get the argmax.
-                    energy_head = energy_head.argmax(1).numpy()
-                else:
-                    energy_head = energy_head.numpy()
-                    # If it's FCOS, transpose and reshape it.
-                    energy_head = energy_head.transpose((1, 2, 0))
-                    energy_head = energy_head.reshape((energy_head.shape[0],
-                                                       energy_head.shape[1]))
+            # Process classes
+            start_time = time()
+            d['classes'] = self.process_classes(img, out_cls[b])
+            self.logger.log_message("processed classes t={:.4f}"
+                                    .format(time() - start_time))
+            out_list.append(d)
 
-                    # Then normalize it to the interval [0, 1]
-                    energy_head += abs(energy_head.min())
-                    n = energy_head.max()
+        return out_list
 
-                # Map the value to colors
-                energy_head = map_alpha_values(energy_head,
-                                               np.array([255, 0, 0]), n)
+    def process_classes(self, img, out_cls):
+        """Processes classes and returns an overlaid image."""
+        out_imgs = []
 
-                # And turn it into an image
-                energy_head = Image.fromarray(energy_head, mode='RGBA')
-                # Resize it to the same size as the original image.
-                energy_head = energy_head.resize(img.size)
+        # Iterate through the heads
+        for head in range(len(out_cls)):
+            # Turn the class labels into an image
+            # First get the labels as an argmax
+            cls_head = out_cls[head].softmax(0).argmax(0).detach().cpu().numpy()
 
-                # Overlay the red on top of the original image
-                temp_img = img.copy()
-                temp_img.paste(energy_head, (0, 0), energy_head)
+            # Then map the values to a color
+            cls_head = map_color_values(cls_head, NUM_CLASSES)
+            cls_head = Image.fromarray(cls_head)
+            # And resize the cls_head to the same size as the raw image
+            cls_head = cls_head.resize(img.size)
 
-                # Finally put it into the images list
-                temp_img = np.array(temp_img).astype('uint8')
-                temp_img = temp_img.transpose((2, 0, 1))
-                energy_images.append(temp_img)
+            # Finally, blend the raw image with the cls_head and append to
+            # the list
+            blended_img = Image.blend(img, cls_head, 0.5)
+            blended_img = np.array(blended_img).astype('uint8')
+            out_imgs.append(np.array(cls_head).astype('uint8'))  # Segmentation
+            out_imgs.append(blended_img)  # Blended image
 
-        return cls_images, energy_images
+        return out_imgs
+
+    def process_scores(self, img, out_scores):
+        """Processes scores and returns an overlaid image."""
+        energy_images = []
+        for head in range(len(out_scores)):
+            energy_head = out_scores[head]
+            if self.model.name == "WFCOS":
+                n = self.model.bbox_head.max_energy
+                # If it's WFCOS, get the argmax.
+                energy_head_normed = energy_head.argmax(1).numpy()
+                n = energy_head_normed.max() * 3
+            else:
+                energy_head = energy_head.detach().cpu().numpy()
+                # If it's FCOS, transpose and reshape it.
+                energy_head = energy_head.transpose((1, 2, 0))
+                energy_head = energy_head.reshape((energy_head.shape[0],
+                                                   energy_head.shape[1]))
+
+                # Then normalize it to the interval [0, max + min]
+                energy_head_normed = energy_head + abs(energy_head.min())
+                n = energy_head_normed.max() * 3
+
+            # Map the value to colors
+            energy_head_normed = map_color_values(energy_head_normed, n)
+            energy_head_normed = Image.fromarray(energy_head_normed)
+
+            # resize energy_head to the same size as the raw image
+            energy_head_normed = energy_head_normed.resize(img.size)
+
+            # If the energy head size is smaller than 20 (i.e. the 2 lowest
+            # resolutions), print also the values in each pixel
+            if energy_head.shape[0] < 20:
+                energy_head_normed = self.draw_energy_values(energy_head_normed,
+                                                             energy_head)
+
+            # Finally blend it
+            image = img.copy()
+            temp_img = Image.blend(image, energy_head_normed, 0.5)
+
+            peaks = map_bool_values(np.greater(energy_head, self.threshold),
+                                           np.array([0, 0, 255]))
+
+            # And turn it into an image
+            peaks = Image.fromarray(peaks, mode='RGBA')
+            # Resize it to the same size as the original image.
+            peaks = peaks.resize(img.size)
+
+            # Overlay the red on top of the original image
+            energy_head_normed.paste(peaks, (0, 0), peaks)
+            temp_img.paste(peaks, (0, 0), peaks)
+
+            # Finally put it into the images list
+            energy_head_normed = np.array(energy_head_normed).astype('uint8')
+            energy_images.append(energy_head_normed) # Just energy
+            energy_images.append(temp_img) # Blended image
+
+        return energy_images
+
+    def process_preds(self, img, out_bbox, out_cls, out_scores):
+        """Processes bboxes and returns an overlaid image."""
+        bboxes = BoundingBox()
+        for head in range(len(out_bbox)):
+            m = torch.tensor(
+                [IMAGE_SIZE[1] / out_cls[head].shape[2],
+                 IMAGE_SIZE[0] / out_cls[head].shape[1]],
+                dtype=torch.float,
+                device=DEVICE
+            )
+            bboxes.append(out_bbox[head], out_cls[head], out_scores[head], m)
+
+        return np.array(draw_boxes(img, bboxes, threshold=self.threshold))
+
+    def process_target(self, img, targets):
+        """Processes targets and returns an overlaid image."""
+        bboxes = BoundingBox()
+        for t in targets:
+            for b in range(self.batch_size):
+                batch_bboxes = [t['bbox'][0][b],
+                                t['bbox'][1][b],
+                                t['bbox'][2][b],
+                                t['bbox'][3][b]]
+                cat = t['category_id'][b]
+                bboxes.append_target(batch_bboxes, cat)
+        return np.array(draw_boxes(img, bboxes, threshold=1., target=True))
+
+    def draw_energy_values(self, image, values):
+        """Draws values in values onto the image.
+
+        Assumes that the image was created using the array values.
+
+        Returns:
+              PIL.Image.Image: The drawn image.
+        """
+        img = image.copy()
+        """Notes:
+        
+        img has size (w, h)
+        values has shape (h, w)
+        
+        """
+
+        # First get grid size
+        grid_w = img.size[0] / values.shape[1]
+        grid_h = img.size[1] / values.shape[0]
+        grid_half_w = grid_w / 2
+        grid_half_h = grid_h / 2
+
+        for i in range(values.shape[0]):
+            for j in range(values.shape[1]):
+                # Iterate in left to right, then top to bottom direction.
+                value = "{:.2f}".format(values[i][j])
+                draw = ImageDraw.Draw(img)
+                text_size = draw.textsize(value, FONT)
+                text_half = (text_size[0] / 2, text_size[1] / 2)
+                center_w = (grid_w * j) + grid_half_w
+                center_h = (grid_h * i) + grid_half_h
+                draw.rectangle([center_w - text_half[0] - 3,
+                                center_h - text_half[1] - 3,
+                                center_w + text_half[0] + 3,
+                                center_h + text_half[1] + 3],
+                               fill=(0, 0, 0))
+                draw.text([center_w - text_half[0],
+                           center_h - text_half[1]],
+                          value,
+                          fill=(255, 255, 255),
+                          font=FONT)
+        return img

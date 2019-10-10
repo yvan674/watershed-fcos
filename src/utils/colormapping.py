@@ -44,11 +44,10 @@ def map_color_value(value, n):
     if value == n:
         value = 0
 
-    hue = value * multiplier
+    hue = float(value) * float(multiplier)
 
-    c = 1
-    x = (abs((hue / 60) % 2 - 1))
-    m = 0.75
+    c = 1.
+    x = 1 - (abs((hue / 60.) % 2. - 1.))
 
     if 0 <= hue < 60:
         out = np.array([c, x, 0.])
@@ -63,19 +62,16 @@ def map_color_value(value, n):
     else:
         out = np.array([c, 0, x])
 
-    out += m
-    return (out * 255)
+    return (out * 255).astype('uint8')
 
 
 def map_alpha_values(array, color, n):
     """Maps energy or centerness values to red with RGBA output.
 
-    Maps
     Args:
         array (np.array): Array of values to be converted in the range [0, n].
-            Must be in the form
         color (np.array): Array of colors in RGB in the range [0, 255].
-        n (int or float): Maximum value that corresponds to Red.
+        n (int or float): Maximum value that corresponds to 100% opacity.
 
     Returns:
         np.array: a numpy array representing RGBA values.
@@ -91,3 +87,18 @@ def map_alpha_values(array, color, n):
 def map_alpha_value(value, color, n):
     """Maps a single value to the alpha parameter of an RGBA array."""
     return np.array([color[0], color[1], color[2], (value / n) * 255])
+
+
+def map_bool_values(array, color):
+    """Maps boolean values to a certain color with RGBA output."""
+    out = np.empty((array.shape[0], array.shape[1], 4))
+    for i in range(array.shape[0]):
+        for j in range(array.shape[1]):
+            out[i][j] = map_bool_value(array[i][j], color)
+    return out.astype('uint8')
+
+
+def map_bool_value(value, color):
+    """Maps a single value to the alpha parameter of an RGBA array."""
+    a = 255 if value else 0
+    return np.array([color[0], color[1], color[2], a])
