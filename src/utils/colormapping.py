@@ -5,7 +5,28 @@ Maps colors of a given value to an RGB value.
 import numpy as np
 
 
-def map_color_values(array, n):
+color_mapping = ('321713',
+                 '401E1F',
+                 '4D262E',
+                 '58303E',
+                 '603B50',
+                 '654862',
+                 '665675',
+                 '636686',
+                 '5B7595',
+                 '5186A0',
+                 '4496A8',
+                 '39A5AC',
+                 '37B5AC',
+                 '43C4A7',
+                 '5AD1A0',
+                 '77DE96',
+                 '98EA8A',
+                 'BCF47F',
+                 'E2FD76')
+
+
+def map_color_values(array, n, source_dest=None):
     """Maps values to RGB arrays.
 
     Shape:
@@ -13,7 +34,8 @@ def map_color_values(array, n):
 
     Args:
         array (np.array): Array of values to map to colors.
-        n (int or float): Maximum value that corresponds to a hue of 360.
+        n (int or float): Number of categories to map.
+        source (list or tuple): Hex value of source (i.e. 0th category)
     """
     out = np.empty((array.shape[0], array.shape[1], 3), dtype='uint8')
     for i in range(array.shape[0]):
@@ -40,6 +62,16 @@ def map_color_value(value, n):
     Returns:
         np.array: a numpy array representing RGB values.
     """
+    if n == 20:
+        # Use nicer color values
+        # First convert value to int
+        value = int(value)
+
+        if value == 0:
+            return np.array([255, 255, 255]).astype('uint8')
+        h = color_mapping[value - 1]
+        return np.array([int(h[i:i + 2], 16) for i in (0, 2, 4)], dtype='uint8')
+
     multiplier = 360 / n
     if value == n:
         value = 0

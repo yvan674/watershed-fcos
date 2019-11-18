@@ -52,6 +52,6 @@ def draw_boxes(image, bounding_boxes, use_watershed=False, threshold=0.8,
             draw.text(bb[0:2] + 3, label, fill=(255, 255, 255), font=FONT)
 
             # Draw the bounding box
-            draw.rectangle(bb[0:4], outline=color, width=4)
+            draw.rectangle(bb[0:4], outline=color, width=2)
 
     return img

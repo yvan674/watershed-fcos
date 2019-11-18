@@ -8,16 +8,16 @@ from PIL import ImageFont
 
 NUM_CLASSES = 80
 IMAGE_SIZE = (640, 800)
+#
+# if torch.cuda.is_available():
+#     DEVICE = torch.device("cuda")
+#     CUDA_COUNT = torch.cuda.device_count()
+# else:
+#     DEVICE = torch.device("cpu")
+#     CUDA_COUNT = 0
 
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-    CUDA_COUNT = torch.cuda.device_count()
-else:
-    DEVICE = torch.device("cpu")
-    CUDA_COUNT = 0
-
-# DEVICE = torch.device("cpu")
-# CUDA_COUNT = 0
+DEVICE = torch.device("cpu")
+CUDA_COUNT = 0
 
 # Create index tensors. First, create an arange preds from 0 to x and y
 # respectively. Then, for y specifically, change the view so it's a column
@@ -40,7 +40,7 @@ INDEX_TENSOR = torch.cat([x_index, y_index,
                           x_index, y_index]).to(device=DEVICE,
                                                 dtype=torch.float)
 
-THRESHOLD = 0.97
+THRESHOLD = 18
 
-FONT = ImageFont.truetype("src/fonts/KeepCalm.ttf", size=16)
+FONT = ImageFont.truetype("/workspace/watershed-fcos/src/fonts/KeepCalm.ttf", size=8)
 

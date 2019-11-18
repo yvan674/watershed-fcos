@@ -77,6 +77,11 @@ class BoundingBox:
         assert score_preds.shape[0] == 1
         assert m.shape[0] == 2
 
+        # get argmax from score_preds
+        score_preds = score_preds.argmax(0).reshape(1, score_preds.shape[1],
+                                                    score_preds.shape[2])
+
+
         # BBoxes are stored as a (n, 6) tensor, with n being the number of
         # bboxes and the 6 being (x0, y0, x1, y1, cat, score)
         cls_preds = cls_preds.softmax(0)
@@ -228,6 +233,10 @@ class BoundingBox:
         #     normalizer = score_preds.max()
         # else:
         #     raise NotImplementedError
+
+        # TODO Something breaks here
+        if normalizer == 0:
+            normalizer = 1
 
         score_preds /= abs(normalizer)
         bbox_preds = bbox_preds.permute(1, 2, 0)

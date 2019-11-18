@@ -41,9 +41,8 @@ class Visualizer:
             cfg (dict): Configuration file from visualize.py
         """
         # Set up checkpoint name prefix
-        self.cp_prefix, self.cp = self.get_checkpoint(cfg['checkpoint'])
+        self.cp = cfg['checkpoint']
         self.run_name = datetime.strftime(datetime.now(), "%y%m%d-%H%M%S")
-        self.cp_prefix += "/" + self.run_name
 
         # Set up some variables
         self.start_epoch = 0
@@ -69,7 +68,7 @@ class Visualizer:
         configuration = {
             'run_name': self.run_name,
             'work_dir': self.work_dir,
-            'checkpoint_path': self.cp_prefix,
+            'checkpoint_path': self.cp,
             'batch_size': self.batch_size,
             'epochs': self.epochs,
             'model': self.model
@@ -170,12 +169,12 @@ class Visualizer:
                 self.model.init_weights(True, True, True)
         else:
             self.logger.log_message("Loading checkpoint from file.")
-            self.model.load_state_dict(self.cp['state_dict'])
+            self.model.load_state_dict(torch.load(self.cp)['state_dict'])
 
     def load_optimizer_checkpoint(self):
         """Loads optimizer checkpoint, if necessary."""
         if self.cp:
-            self.optimizer.load_state_dict(self.cp['optimizer'])
+            self.optimizer.load_state_dict(torch.load(self.cp)['optimizer'])
 
     def run(self):
         """Actually perform training."""
@@ -206,6 +205,9 @@ class Visualizer:
                 out_cls = self.reshape_out(out[0])
                 out_bbox = self.reshape_out(out[1])
                 out_scores = self.reshape_out(out[2])
+
+                # Argmax out_scores
+                out_scores = self.argmax_scores(out_scores)
 
                 processed_images = self.process_images(image, out_bbox, out_cls,
                                                        out_scores, target)
@@ -250,7 +252,7 @@ class Visualizer:
 
         for head in range(num_heads):
             for b in range(self.batch_size):
-                out_list[b].append(tensor_list[head][b])
+                out_list[b].append(tensor_list[head][b].detach())
 
         return out_list
 
@@ -397,7 +399,8 @@ class Visualizer:
             )
             bboxes.append(out_bbox[head], out_cls[head], out_scores[head], m)
 
-        return np.array(draw_boxes(img, bboxes, threshold=self.threshold))
+        return np.array(draw_boxes(img, bboxes, use_watershed=True,
+                                   threshold=self.threshold))
 
     def process_target(self, img, targets):
         """Processes targets and returns an overlaid image."""
@@ -454,3 +457,16 @@ class Visualizer:
                           fill=(255, 255, 255),
                           font=FONT)
         return img
+
+    def argmax_scores(self, out_scores):
+        """Applies argmax to the out_scores."""
+        out_list = []
+        for _ in out_scores:
+            out_list.append([])
+
+        for i, image in enumerate(out_scores):
+            for head in image:
+                out_list[i].append(head.argmax(0).reshape(1, head.shape[1],
+                                                          head.shape[2]))
+
+        return out_list

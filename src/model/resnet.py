@@ -6,8 +6,8 @@ from torch.nn.modules.batchnorm import _BatchNorm
 
 from .utils.conv_module import build_conv_layer
 from .utils.norm import build_norm_layer
-from ops.dcn.deform_conv import DeformConv, ModulatedDeformConv
-from ops.context_block import ContextBlock
+from mmdet.ops.dcn.deform_conv import DeformConv, ModulatedDeformConv
+from mmdet.ops.context_block import ContextBlock
 from .plugins.generalized_attention import GeneralizedAttention
 from .utils.weight_init import constant_init, kaiming_init
 
