@@ -68,14 +68,14 @@ def tpfp_imagenet(det_bboxes,
         area_ranges (list or None): gt bbox area ranges
 
     Returns:
-        tuple: two arrays (tp, fp) whose elements are 0 and 1
+        tuple: two arrays (tp, file_path) whose elements are 0 and 1
     """
     num_dets = det_bboxes.shape[0]
     num_gts = gt_bboxes.shape[0]
     if area_ranges is None:
         area_ranges = [(None, None)]
     num_scales = len(area_ranges)
-    # tp and fp are of shape (num_scales, num_gts), each row is tp or fp
+    # tp and file_path are of shape (num_scales, num_gts), each row is tp or file_path
     # of a certain scale.
     tp = np.zeros((num_scales, num_dets), dtype=np.float32)
     fp = np.zeros((num_scales, num_dets), dtype=np.float32)
@@ -116,10 +116,10 @@ def tpfp_imagenet(det_bboxes,
                     max_iou = ious[i, j]
                     matched_gt = j
             # there are 4 cases for a det bbox:
-            # 1. it matches a gt, tp = 1, fp = 0
-            # 2. it matches an ignored gt, tp = 0, fp = 0
-            # 3. it matches no gt and within area range, tp = 0, fp = 1
-            # 4. it matches no gt but is beyond area range, tp = 0, fp = 0
+            # 1. it matches a gt, tp = 1, file_path = 0
+            # 2. it matches an ignored gt, tp = 0, file_path = 0
+            # 3. it matches no gt and within area range, tp = 0, file_path = 1
+            # 4. it matches no gt but is beyond area range, tp = 0, file_path = 0
             if matched_gt >= 0:
                 gt_covered[matched_gt] = 1
                 if not (gt_ignore[matched_gt] or gt_area_ignore[matched_gt]):
@@ -144,14 +144,14 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
         iou_thr (float): the iou thresholds
 
     Returns:
-        tuple: (tp, fp), two arrays whose elements are 0 and 1
+        tuple: (tp, file_path), two arrays whose elements are 0 and 1
     """
     num_dets = det_bboxes.shape[0]
     num_gts = gt_bboxes.shape[0]
     if area_ranges is None:
         area_ranges = [(None, None)]
     num_scales = len(area_ranges)
-    # tp and fp are of shape (num_scales, num_gts), each row is tp or fp of
+    # tp and file_path are of shape (num_scales, num_gts), each row is tp or file_path of
     # a certain scale
     tp = np.zeros((num_scales, num_dets), dtype=np.float32)
     fp = np.zeros((num_scales, num_dets), dtype=np.float32)
@@ -188,7 +188,7 @@ def tpfp_default(det_bboxes, gt_bboxes, gt_ignore, iou_thr, area_ranges=None):
                         tp[k, i] = 1
                     else:
                         fp[k, i] = 1
-                # otherwise ignore this detected bbox, tp = 0, fp = 0
+                # otherwise ignore this detected bbox, tp = 0, file_path = 0
             elif min_area is None:
                 fp[k, i] = 1
             else:
@@ -260,7 +260,7 @@ def eval_map(det_results,
         # get gt and det bboxes of this class
         cls_dets, cls_gts, cls_gt_ignore = get_cls_results(
             det_results, gt_bboxes, gt_labels, gt_ignore, i)
-        # calculate tp and fp for each image
+        # calculate tp and file_path for each image
         tpfp_func = (
             tpfp_imagenet if dataset in ['det', 'vid'] else tpfp_default)
         tpfp = [
@@ -281,13 +281,13 @@ def eval_map(det_results,
                     num_gts[k] += np.sum(
                         np.logical_not(cls_gt_ignore[j])
                         & (gt_areas >= min_area) & (gt_areas < max_area))
-        # sort all det bboxes by score, also sort tp and fp
+        # sort all det bboxes by score, also sort tp and file_path
         cls_dets = np.vstack(cls_dets)
         num_dets = cls_dets.shape[0]
         sort_inds = np.argsort(-cls_dets[:, -1])
         tp = np.hstack(tp)[:, sort_inds]
         fp = np.hstack(fp)[:, sort_inds]
-        # calculate recall and precision with tp and fp
+        # calculate recall and precision with tp and file_path
         tp = np.cumsum(tp, axis=1)
         fp = np.cumsum(fp, axis=1)
         eps = np.finfo(np.float32).eps
