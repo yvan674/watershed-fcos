@@ -6,7 +6,8 @@ Author:
     Yvan Satyawan <y_satyawan@hotmail.com>
 """
 import sys
-from os.path import join
+from os.path import join, exists
+from os import mkdir
 from conversion.coco_annotations import CocoLikeAnnotations
 from conversion.images import process_image_dir
 from conversion.categories import generate_categories
@@ -28,71 +29,44 @@ def process_class_names(dir_path: str) -> dict:
 def do_conversion(dir_path: str) -> tuple:
     """Does the actual conversion.
 
-    Note:
-        This is not the mos efficient way to do this, but we need to do this
-        only rarely so it doesn't matter. A more efficient way would be to
-        split it into the training and validation sets as we go but that
-        requires changing how the images are processed.
-
     Returns:
         A tuple where the first element is the training CocoLikeAnnotations
         and the second element is the validation CocoLikeAnnotations.
     """
     training_set = set()
-    validation_set = set()
 
-    # Get the training set and validation set as sets
+    # Get the training set and validation split as sets
     with open(join(dir_path, 'train_names.csv')) as train_names:
         reader = csv.reader(train_names)
         for line in reader:
             training_set.add(line[1])
 
-    with open(join(dir_path, 'test_names.csv')) as test_names:
-        reader = csv.reader(test_names)
-        for line in reader:
-            validation_set.add(line[1])
+    # Make the work dir if it doesn't exist
+    work_dir = join(dir_path, 'tmp')
+    if not exists(work_dir):
+        mkdir(work_dir)
 
-    images, img_lookup = process_image_dir(join(dir_path, 'images_png'))
+    train_img_path, val_img_path, img_lookup = \
+        process_image_dir(join(dir_path, 'images_png'), work_dir, training_set)
+
+    # This is quick so we don't need to save results to disk
     categories, cat_lookup = generate_categories(join(dir_path,
                                                       'class_names.csv'))
 
     class_names = process_class_names(dir_path)
-    annotations = generate_annotations(join(dir_path, 'pix_annotations_png'),
-                                       join(dir_path, 'xml_annotations'),
-                                       cat_lookup, img_lookup,
-                                       class_names)
-
-    # Now split the image into validation and training
-    print('Splitting images...')
-    train_images = []
-    train_ids = set()
-    val_images = []
-    val_ids = set()
-    for image in images:
-        name = image['file_name'].split('.')[0]
-
-        if name in training_set:
-            train_images.append(image)
-            train_ids.add(image['id'])
-        elif name in validation_set:
-            val_images.append(image)
-            val_ids.add(image['id'])
-
-    print('Splitting annotations...')
-    # And now split the annotations into validation and training
-    train_annotations = []
-    val_annotations = []
-    for annotation in annotations:
-        img_id = annotation['image_id']
-        if img_id in train_ids:
-            train_annotations.append(annotation)
-        elif img_id in val_ids:
-            val_annotations.append(annotation)
+    train_ann, val_ann = generate_annotations(
+        pix_annotations_dir=join(dir_path, 'pix_annotations_png'),
+        xml_annotations_dir=join(dir_path, 'xml_annotations'),
+        category_lookup=cat_lookup,
+        img_lookup=img_lookup,
+        class_colors=class_names,
+        train_set=training_set,
+        work_dir=join(dir_path))
 
     desc = "DeepScores as COCO Dataset"
-    return (CocoLikeAnnotations(desc, train_images, categories,
-                                train_annotations),
-            CocoLikeAnnotations(desc, val_images, categories, val_annotations))
+    return (CocoLikeAnnotations(desc, train_img_path, categories,
+                                train_ann),
+            CocoLikeAnnotations(desc, val_img_path, categories, val_ann))
 
 
 if __name__ == '__main__':
