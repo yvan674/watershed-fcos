@@ -115,6 +115,8 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
     train_file.close()
     val_file.close()
 
+    print("Done processing images!")
+
     return join(work_dir, 'training_list.csv'), \
            join(work_dir, 'validation_list.csv'), \
            lookup_table

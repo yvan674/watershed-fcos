@@ -14,13 +14,13 @@ from csv import DictReader
 
 
 class CocoLikeAnnotations:
-    def __init__(self, description: str, images: list, categories: list,
-                 annotations: dict):
+    def __init__(self, description: str, images: str, categories: list,
+                 annotations: list):
         """Creates the basic structure of the COCO-like dataset.
 
         Args:
             description: Description of the DeepScores dataset.
-            images: List of the images according to the COCO conventions.
+            images: Path to the image data csv file.
             categories: List of the categories according to the COCO
                 conventions.
             annotations: Dictionary containing the path and shape of the
@@ -41,8 +41,7 @@ class CocoLikeAnnotations:
                 }
             ],
             'images': images,
-            'annotations': np.memmap(annotations['path'], dtype=object,
-                                     mode='r', shape=annotations['shape']),
+            'annotations': annotations,
             'categories': categories
         }
 
@@ -67,17 +66,16 @@ class CocoLikeAnnotations:
                     'flickr_url': row['flickr_url'],
                     'id': int(row['id'])
                 })
-        print('Reading annotations file...')
-        listified_anns = self.annotations['annotations'].tolist()
 
         annotation = {
             'info': self.annotations['info'],
             'licenses': self.annotations['licenses'],
             'images': image_list,
-            'annotations': listified_anns,
+            'annotations': self.annotations['annotations'],
             'categories': self.annotations['categories']
         }
         print('Writing to disk...')
         with open(output_fp, 'w+') as output_file:
-            json.dump(annotation, output_file, indent=4,
-                      separators=(',', ': '))
+            json.dump(annotation, output_file#, indent=4,
+                      # separators=(',', ': ')
+                      )
