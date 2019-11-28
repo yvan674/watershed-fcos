@@ -5,7 +5,6 @@ Converts DeepScores styled annotations to COCO style annotations.
 Author:
     Yvan Satyawan <y_satyawan@hotmail.com>
 """
-import sys
 from os.path import join, exists
 from os import mkdir
 from conversion.coco_annotations import CocoLikeAnnotations
