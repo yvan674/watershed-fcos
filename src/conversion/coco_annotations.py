@@ -9,13 +9,13 @@ Created on:
     November 18, 2019
 """
 import json
-import numpy as np
 from csv import DictReader
 
 
 class CocoLikeAnnotations:
     def __init__(self, description: str, images: str, categories: list,
-                 annotations: list):
+                 annotations: list,
+                 url: str='https://tuggeluk.github.io/deepscores/'):
         """Creates the basic structure of the COCO-like dataset.
 
         Args:
@@ -29,7 +29,7 @@ class CocoLikeAnnotations:
         self.annotations = {
             'info': {
                 'description': description,
-                'url': 'https://tuggeluk.github.io/deepscores/',
+                'url': url,
                 'version': '1.0'
             },
 
