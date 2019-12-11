@@ -61,6 +61,9 @@ def generate_new_annotations(ann_ids: list, img_ids: list,
         coco: The COCO object.
         output_fp: Where to output the new annotation file to.
     """
+    print('Loading categories')
+    coco_cats = coco.cats
+    cats = [coco_cats[cat] for cat in coco_cats.keys()]
     print('Loading new images and annotations...')
     new_annotations = {
         'info': {
@@ -77,8 +80,8 @@ def generate_new_annotations(ann_ids: list, img_ids: list,
             }
         ],
         'images': coco.loadImgs(img_ids),
-        'annotation': coco.loadAnns(ann_ids),
-        'categories': coco.cats
+        'annotations': coco.loadAnns(ann_ids),
+        'categories': cats
     }
 
     print('Writing new annotation file to disk...')
