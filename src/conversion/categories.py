@@ -30,23 +30,55 @@ def generate_categories(file_path: str) -> tuple:
     Returns:
          A tuple where the first item is a COCO-like list of items. The second
          is a lookup table dictionary with the key being the file name and the
-         value being the id number.
+         value being the id number. The third is a set of all category names.
     """
     categories = []
     lookup_table = dict()
+    categories_set = set()
     with open(file_path) as class_names:
+        temp_reader = csv.reader(class_names)
+        contains_blacklist = len(next(temp_reader)) == 3
+        del temp_reader
         reader = csv.reader(class_names)
-        for id, name in reader:
-            split_name = camel_case_split(name)
-            super_category = split_name[0]
-            categories.append({
-                'supercategory': super_category,
-                'id': id,
-                'name': name
-            })
-            lookup_table[name] = id
+        if contains_blacklist:
+            for id, name, blacklist in reader:
+                if blacklist:
+                    # Don't process if blacklist
+                    continue
 
-    return categories, lookup_table
+                split_name = camel_case_split(name)
+                super_category = split_name[0]
+                if super_category == "notehead":
+                    categories.append({
+                        'supercategory': super_category,
+                        'id': id,
+                        'name': name + 'Online'
+                    })
+                    categories.append({
+                        'supercategory': super_category,
+                        'id': id,
+                        'name': name + 'Offline'
+                    })
+                else:
+                    categories.append({
+                        'supercategory': super_category,
+                        'id': id,
+                        'name': name
+                    })
+        else:
+            for id, name in reader:
+                split_name = camel_case_split(name)
+                super_category = split_name[0]
+
+                categories.append({
+                    'supercategory': super_category,
+                    'id': id,
+                    'name': name
+                })
+        lookup_table[name] = id
+        categories_set.add(name)
+
+    return categories, lookup_table, categories_set
 
 
 if __name__ == '__main__':

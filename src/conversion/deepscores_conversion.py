@@ -22,10 +22,8 @@ def parse_argument():
 
     parser.add_argument('DIR', type=str, nargs=1,
                         help='path to directory containing the dataset')
-    parser.add_argument('-x', '--extended', action='store_true',
-                        help='sets the conversion to convert the extended '
-                             'dataset. This requires the name of the '
-                             'class_names file to be class_names_extended.csv')
+    parser.add_argument('CLASSES', type=str,
+                        help='path to the file containing the class names list')
 
     return parser.parse_args()
 
@@ -41,7 +39,7 @@ def process_class_colors(file_path: str) -> dict:
     return class_name_dict
 
 
-def do_conversion(dir_path: str, extended: bool) -> tuple:
+def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     """Does the actual conversion.
 
     Returns:
@@ -65,14 +63,10 @@ def do_conversion(dir_path: str, extended: bool) -> tuple:
         process_image_dir(join(dir_path, 'images_png'), work_dir, training_set)
 
     # This is quick so we don't need to save results to disk
-    if extended:
-        cat_file_name = 'class_names_extended.csv'
-    else:
-        cat_file_name = 'class_names.csv'
-    categories, cat_lookup = generate_categories(join(dir_path,
-                                                      cat_file_name))
+    categories, cat_lookup, cat_set = generate_categories(join(dir_path,
+                                                               class_names_fp))
 
-    class_colors = process_class_colors(join(dir_path, cat_file_name))
+    class_colors = process_class_colors(join(dir_path, class_names_fp))
     train_ann, val_ann = generate_annotations(
         pix_annotations_dir=join(dir_path, 'pix_annotations_png'),
         xml_annotations_dir=join(dir_path, 'xml_annotations'),
@@ -80,7 +74,7 @@ def do_conversion(dir_path: str, extended: bool) -> tuple:
         img_lookup=img_lookup,
         class_colors=class_colors,
         train_set=training_set,
-        work_dir=join(dir_path))
+        category_set=cat_set)
 
     desc = "DeepScores as COCO Dataset"
     return (CocoLikeAnnotations(desc, train_img_path, categories,
@@ -94,7 +88,7 @@ if __name__ == '__main__':
     dir_path = arguments.DIR[0]
 
     converted_train, converted_val = do_conversion(dir_path,
-                                                   arguments.extended)
+                                                   arguments.CLASSES)
     print('\nWriting training annotation file to disk...')
     converted_train.output_json(join(dir_path, 'deepscores_train.json'))
 

@@ -66,7 +66,7 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                          category_lookup: dict, img_lookup: dict,
                          class_colors: dict, train_set: set,
-                         work_dir: str) -> tuple:
+                         category_set: set) -> tuple:
     """Generates COCO-like annotations.
 
     Args:
@@ -83,7 +83,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         train_set: A set that includes the image names of every image in the
             training set. Used to separate which annotation list the
             annotation should be appended to.
-        work_dir: The directory to save all the memory-mapped arrays.
+        category_set: A set that contains all category names.
 
     Notes:
         work_dir is the directory where we can put temporary files. If we
@@ -125,7 +125,12 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         for obj in root.iter('object'):
             # Go through each annotation
             name = obj.find('name').text
-            if name != "brace":
+            if 'notehead' in name:
+                if int(obj.find('rel_position').text) % 2 == 0:
+                    name += 'Online'
+                else:
+                    name += 'Offline'
+            if name in category_set:
                 # Get bounding box values
                 bndbox = obj.find('bndbox')
                 xmin = float(bndbox.find('xmin').text) * w
