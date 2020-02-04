@@ -58,8 +58,6 @@ if __name__ == '__main__':
             mean[i] += data.to(dtype=torch.float)[:,:,:,i].mean().item()
             std[i] += data.to(dtype=torch.float)[:,:,:,i].std().item()
 
-        print('Processed {} of {} images.'.format(n, len(ds)))
-
     for i in range(3):
         mean[i] /= len(ds)
         std[i] /= len(ds)
