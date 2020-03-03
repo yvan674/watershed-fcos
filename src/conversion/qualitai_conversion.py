@@ -305,6 +305,7 @@ def do_conversion(dir_path: str, combine_sets: bool) -> list:
             'categories': categories,
             'annotations': annotations
         })
+        print('{}: {} images'.format(directory, len(images)))
 
     return coco_annotations
 
