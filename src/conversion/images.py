@@ -120,3 +120,44 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
     return join(work_dir, 'training_list.csv'), \
            join(work_dir, 'validation_list.csv'), \
            lookup_table
+
+
+def image_csv_to_dict(fp:str, style:str, ann_lookup:dict=None) -> list:
+    """Reads the image csv file and turns it into a list of dictionaries.
+
+    Args:
+        fp: Path to the csv file.
+        style: Which style to return. Possible options are 'coco', 'obb'
+        train_ann_lookup: Training annotations lookup.
+        val_ann_lookup: Validation annotations lookup.
+
+    Returns:
+        The list of images as dictionaries according to the required style.
+    """
+    assert style in ('coco', 'obb'), 'The chosen style is not implemented.'
+    print('Reading image CSV file...')
+    image_list = []
+    with open(fp, mode='r') as csv_file:
+        reader = csv.DictReader(csv_file, skipinitialspace=True)
+        for row in reader:
+            if style is 'coco':
+                image_list.append({
+                    'license': int(row['license']),
+                    'file_name': row['file_name'],
+                    'coco_url': row['coco_url'],
+                    'height': int(row['height']),
+                    'width': int(row['width']),
+                    'date_captured': row['date_captured'],
+                    'flickr_url': row['flickr_url'],
+                    'id': int(row['id'])
+                })
+            elif style is 'obb':
+                img_id = int(row['id'])
+                image_list.append({
+                    'id': img_id,
+                    'filename': row['file_name'],
+                    'width': int(row['width']),
+                    'height': int(row['height']),
+                    'ann_ids': ann_lookup[img_id]
+                })
+    return image_list

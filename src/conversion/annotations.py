@@ -20,6 +20,7 @@ import numpy as np
 from PIL import Image
 from math import floor, ceil
 from itertools import groupby
+from tqdm import tqdm
 
 
 def binary_mask_to_rle(binary_mask):
@@ -93,23 +94,30 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         object from numpy.
 
     Returns:
-        A tuple of annotation lists, the 0th element being the training list
-        and the 1st being the validation list.
+        A tuple of annotation lists, the 0th element being the training list,
+        the 1st being the validation list, the 2nd being the list of
+        annotations per training image, and the 3rd being the list of
+        annotations per validation image.
     """
     print("Processing annotations...")
     train_annotation_list = []
     test_annotation_list = []
+    train_annotation_lookup = {}
+    test_annotation_lookup = {}
 
     counter = 1
 
     file_list = listdir(xml_annotations_dir)
-    len_file_list = len(file_list)
-    file_counter = 1
 
-    for file_name in file_list:
+    for file_name in tqdm(file_list):
         img_name = file_name.split('.')[0]
         xml_path = join(xml_annotations_dir, file_name)
         segmentation_path = join(pix_annotations_dir, img_name + '.png')
+        file_annotations = []
+
+        # Do checks now
+        image_id = img_lookup[img_name]
+        img_in_train = img_name in train_set
 
         seg_array = np.array(Image.open(segmentation_path))
         # NOTE: seg_array.shape = (height, width)
@@ -153,12 +161,12 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                                                       class_color)
                 rle_segmentation = binary_mask_to_rle(bin_mask)
 
-                if img_name in train_set:
+                if img_in_train:
                     train_annotation_list.append({
                         'segmentation': rle_segmentation,
                         'area': area,
                         'iscrowd': 0,
-                        'image_id': img_lookup[img_name],
+                        'image_id': image_id,
                         'bbox': bbox,
                         'category_id': category_id,
                         'id': counter
@@ -173,11 +181,20 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                         'category_id': category_id,
                         'id': counter
                     })
+                file_annotations.append(counter)
                 counter += 1
-        if file_counter % 50 == 0 or file_counter == len_file_list:
-            print('Processed {} of {} xml files'.format(file_counter,
-                                                        len_file_list))
+        if img_in_train:
+            train_annotation_lookup[image_id] = file_annotations
+        else:
+            test_annotation_lookup[image_id] = file_annotations
 
-        file_counter += 1
+    return train_annotation_list, test_annotation_list, \
+           train_annotation_lookup, test_annotation_lookup
 
-    return train_annotation_list, test_annotation_list
+
+def generate_oriented_annotations(
+        pix_annotations_dir: str, xml_annotations_dir: str,
+        category_lookup: dict, img_lookup: dict, class_colors: dict,
+        train_set: set, category_set: set) -> tuple:
+    """Generates OBB style annotations."""
+    raise NotImplementedError

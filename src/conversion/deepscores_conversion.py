@@ -74,7 +74,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         img_lookup=img_lookup,
         class_colors=class_colors,
         train_set=training_set,
-        category_set=cat_set)
+        category_set=cat_set)[0:2]
 
     desc = "DeepScores as COCO Dataset"
     return (CocoLikeAnnotations(desc, train_img_path, categories,
