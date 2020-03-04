@@ -15,12 +15,13 @@ Created on:
 """
 from xml.etree import ElementTree as ET
 from os import listdir
-from os.path import join
+from os.path import join, splitext
 import numpy as np
 from PIL import Image
 from math import floor, ceil
 from itertools import groupby
 from tqdm import tqdm
+from cv2 import minAreaRect, boxPoints
 
 
 def binary_mask_to_rle(binary_mask):
@@ -29,7 +30,7 @@ def binary_mask_to_rle(binary_mask):
     for i, (value, elements) in enumerate(groupby(
             binary_mask.ravel(order='F'))):
         if i == 0 and value == 1:
-                counts.append(0)
+            counts.append(0)
         counts.append(len(list(elements)))
 
     return rle
@@ -67,7 +68,7 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                          category_lookup: dict, img_lookup: dict,
                          class_colors: dict, train_set: set,
-                         category_set: set) -> tuple:
+                         category_set: set, oriented: bool = False) -> tuple:
     """Generates COCO-like annotations.
 
     Args:
@@ -85,6 +86,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
             training set. Used to separate which annotation list the
             annotation should be appended to.
         category_set: A set that contains all category names.
+        oriented: Whether or not to use the oriented bounding box schema.
 
     Notes:
         work_dir is the directory where we can put temporary files. If we
@@ -100,8 +102,8 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         annotations per validation image.
     """
     print("Processing annotations...")
-    train_annotation_list = []
-    test_annotation_list = []
+    train_annotation_list = {} if oriented else []
+    test_annotation_list = {} if oriented else []
     train_annotation_lookup = {}
     test_annotation_lookup = {}
 
@@ -110,7 +112,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
     file_list = listdir(xml_annotations_dir)
 
     for file_name in tqdm(file_list):
-        img_name = file_name.split('.')[0]
+        img_name = splitext(file_name)[0]
         xml_path = join(xml_annotations_dir, file_name)
         segmentation_path = join(pix_annotations_dir, img_name + '.png')
         file_annotations = []
@@ -139,48 +141,49 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                 else:
                     name += 'Offline'
             if name in category_set:
-                # Get bounding box values
-                bndbox = obj.find('bndbox')
-                xmin = float(bndbox.find('xmin').text) * w
-                ymin = float(bndbox.find('ymin').text) * h
-                width = (float(bndbox.find('xmax').text) * w) - xmin
-                height = (float(bndbox.find('ymax').text) * h) - ymin
-
-                bbox = [xmin, ymin, round(width, 8), round(height, 8)]
-
-                # Get category ID
+                # First get category ID
                 category_id = category_lookup[name]
 
-                # Calculate segmentation
-                # First extract the bbox area from the segmentation
-                extracted_seg = extract_area_inside_bbox(bbox, seg_array)
+                # Second, get aligned bbox
+                aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
+
+                # Then calculate segmentation
+                # Extract the bbox area from the segmentation
+                extracted_seg = extract_area_inside_bbox(aligned_bbox,
+                                                         seg_array)
 
                 # Then turn it into a binary mask
                 class_color = int(class_colors[name])
                 bin_mask, area = generate_binary_mask(extracted_seg,
                                                       class_color)
-                rle_segmentation = binary_mask_to_rle(bin_mask)
 
-                if img_in_train:
-                    train_annotation_list.append({
+                if not oriented:
+                    rle_segmentation = binary_mask_to_rle(bin_mask)
+                    annotation = {
                         'segmentation': rle_segmentation,
                         'area': area,
                         'iscrowd': 0,
                         'image_id': image_id,
-                        'bbox': bbox,
+                        'bbox': aligned_bbox,
                         'category_id': category_id,
                         'id': counter
-                    })
+                    }
+                    if img_in_train:
+                        train_annotation_list.append(annotation)
+                    else:
+                        test_annotation_list.append(annotation)
                 else:
-                    test_annotation_list.append({
-                        'segmentation': rle_segmentation,
+                    oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
+                    curr_ann = {
+                        'bbox': tuple(oriented_bbox),
+                        'cat_id': category_id,
                         'area': area,
-                        'iscrowd': 0,
-                        'image_id': img_lookup[img_name],
-                        'bbox': bbox,
-                        'category_id': category_id,
-                        'id': counter
-                    })
+                        'img_id': image_id
+                    }
+                    if img_in_train:
+                        train_annotation_list[counter] = curr_ann
+                    else:
+                        test_annotation_list[counter] = curr_ann
                 file_annotations.append(counter)
                 counter += 1
         if img_in_train:
@@ -188,13 +191,35 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         else:
             test_annotation_lookup[image_id] = file_annotations
 
-    return train_annotation_list, test_annotation_list, \
-           train_annotation_lookup, test_annotation_lookup
+    return (train_annotation_list, test_annotation_list,
+            train_annotation_lookup, test_annotation_lookup)
 
 
-def generate_oriented_annotations(
-        pix_annotations_dir: str, xml_annotations_dir: str,
-        category_lookup: dict, img_lookup: dict, class_colors: dict,
-        train_set: set, category_set: set) -> tuple:
-    """Generates OBB style annotations."""
-    raise NotImplementedError
+def get_aligned_bbox(bndbox, h, w):
+    """Gets the axis aligned absolute bounding box.
+
+    This function gets the aligned bounding box of an object based on the
+    bndbox value given in the xml description of the object. h and w are used
+    to change the values from relative to absolute.
+    """
+    xmin = float(bndbox.find('xmin').text) * w
+    ymin = float(bndbox.find('ymin').text) * h
+    width = (float(bndbox.find('xmax').text) * w) - xmin
+    height = (float(bndbox.find('ymax').text) * h) - ymin
+
+    return [xmin, ymin, round(width, 8), round(height, 8)]
+
+
+def get_oriented_bbox(aligned_bbox, bin_mask):
+    """Calculates the oriented bounding box around an object.
+
+    Returns:
+        np.ndarray: bbox as a (8,) numpy array
+    """
+    adders = np.array(aligned_bbox[0:2])
+
+    bin_indices = np.transpose(np.nonzero(bin_mask))
+    min_box = boxPoints(minAreaRect(bin_indices))
+    min_box += adders  # shift them to their actual absolute position
+
+    return np.concatenate(min_box)
