@@ -9,9 +9,11 @@ Created on:
     November 18, 2019
 """
 from os import listdir
-from os.path import join, exists
+from os.path import join, exists, splitext
 from PIL import Image
 import csv
+
+from tqdm import tqdm
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -52,7 +54,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
         with open(lookup_fp, mode='w') as lookup_file:
             writer = csv.writer(lookup_file)
             for image in dir_list:
-                img_name = image.split('.')[0]
+                img_name = splitext(image)[0]
                 lookup_table[img_name] = counter
                 counter += 1
             writer.writerows(lookup_table.items())
@@ -73,7 +75,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
     train_list = []
     val_list = []
 
-    for image in dir_list:
+    for image in tqdm(dir_list):
         img_file = Image.open(join(dir, image))
         width, height = img_file.size
         data = {
@@ -86,7 +88,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
             'flickr_url': 'not_on_flickr',
             'id': counter
         }
-        img_name = image.split('.')[0]
+        img_name = splitext(image)[0]
         lookup_table[img_name] = counter
 
         # Append to the appropriate list
@@ -94,9 +96,6 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
             train_list.append(data)
         else:
             val_list.append(data)
-
-        if counter % 50 == 0 or counter == len(dir_list):
-            print('Processing image {} of {}'.format(counter, len(dir_list)))
 
         if counter % 500 == 0 or counter == len(dir_list):
             train_writer.writerows(train_list)
@@ -114,6 +113,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
     # Close out files when we finish
     train_file.close()
     val_file.close()
+    img_lookup_file.close()
 
     print("Done processing images!")
 

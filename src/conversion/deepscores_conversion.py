@@ -28,17 +28,6 @@ def parse_argument():
     return parser.parse_args()
 
 
-def process_class_colors(file_path: str) -> dict:
-    """Turns the class_names csv to a dict """
-    class_name_dict = dict()
-    with open(file_path, 'r') as class_names:
-        reader = csv.reader(class_names)
-        for line in reader:
-            class_name_dict[line[1]] = line[0]
-
-    return class_name_dict
-
-
 def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     """Does the actual conversion.
 
@@ -66,13 +55,11 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     categories, cat_lookup, cat_set = generate_categories(join(dir_path,
                                                                class_names_fp))
 
-    class_colors = process_class_colors(join(dir_path, class_names_fp))
     train_ann, val_ann = generate_annotations(
         pix_annotations_dir=join(dir_path, 'pix_annotations_png'),
         xml_annotations_dir=join(dir_path, 'xml_annotations'),
         category_lookup=cat_lookup,
         img_lookup=img_lookup,
-        class_colors=class_colors,
         train_set=training_set,
         category_set=cat_set)[0:2]
 

@@ -11,9 +11,8 @@ Created on:
 import os.path as osp
 import os
 from conversion import OBBAnnotations, process_image_dir, \
-    generate_oriented_categories, generate_oriented_annotations, \
+    generate_oriented_categories, generate_annotations, \
     image_csv_to_dict
-from conversion.deepscores_conversion import process_class_colors
 import csv
 import argparse
 
@@ -58,16 +57,15 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         dir_path, class_names_fp
     ))
 
-    class_colors = process_class_colors(osp.join(dir_path, class_names_fp))
     train_ann, val_ann, train_ann_lookup, val_ann_lookup = \
-    generate_oriented_annotations(
+    generate_annotations(
         pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
         xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
         category_lookup=cat_lookup,
         img_lookup=img_lookup,
-        class_colors=class_colors,
         train_set=training_set,
-        category_set=cat_set
+        category_set=cat_set,
+        oriented=True
     )
 
     # Once that's complete, generate the actual dataset objects.
@@ -90,7 +88,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 if __name__ == '__main__':
     arguments = parse_argument()
 
-    train, val = do_conversion(arguments.DIR, arguments.CLASS)
+    train, val = do_conversion(arguments.DIR, arguments.CLASSES)
 
     print('\nWriting training annotation file to disk...')
     train.output_json(osp.join(arguments.DIR, 'deepscores_oriented_train.json'))

@@ -67,8 +67,8 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
 
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                          category_lookup: dict, img_lookup: dict,
-                         class_colors: dict, train_set: set,
-                         category_set: set, oriented: bool = False) -> tuple:
+                         train_set: set, category_set: set,
+                         oriented: bool = False) -> tuple:
     """Generates COCO-like annotations.
 
     Args:
@@ -86,14 +86,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
             training set. Used to separate which annotation list the
             annotation should be appended to.
         category_set: A set that contains all category names.
-        oriented: Whether or not to use the oriented bounding box schema.
-
-    Notes:
-        work_dir is the directory where we can put temporary files. If we
-        work with the entire deepscores dataset, the number of objects to
-        detect is huge, thus we have to write to disk so we don't end up using
-        several hundred gigabytes of memory. We do this by using a memmap
-        object from numpy.
+        oriented: Whether or not to use the oriented bounding box schema.t
 
     Returns:
         A tuple of annotation lists, the 0th element being the training list,
@@ -153,7 +146,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                                                          seg_array)
 
                 # Then turn it into a binary mask
-                class_color = int(class_colors[name])
+                class_color = int(category_id)
                 bin_mask, area = generate_binary_mask(extracted_seg,
                                                       class_color)
 
@@ -175,7 +168,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                 else:
                     oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
                     curr_ann = {
-                        'bbox': tuple(oriented_bbox),
+                        'bbox': [float(x) for x in oriented_bbox],
                         'cat_id': category_id,
                         'area': area,
                         'img_id': image_id

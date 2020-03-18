@@ -21,6 +21,22 @@ def camel_case_split(identifier):
     return [m.group(0) for m in matches]
 
 
+def csv_bool_to_python_bool(string: str) -> bool:
+    """Converts a CSV bool to a python bool object.
+
+    CSV saves boolean data as 'TRUE' or 'FALSE'. Python thinks these are both
+    true. This function converts these CSV strings to python bool objects.
+
+    Args:
+        string: The CSV string to be converted.
+
+    Returns:
+        The python version of the string.
+    """
+    assert string in ('TRUE', 'FALSE')
+    return string == 'TRUE'
+
+
 def generate_categories(file_path: str) -> tuple:
     """Generates a COCO categories list and a lookup table from class_names.csv
 
@@ -42,7 +58,7 @@ def generate_categories(file_path: str) -> tuple:
         reader = csv.reader(class_names)
         if contains_blacklist:
             for id, name, blacklist in reader:
-                if blacklist:
+                if csv_bool_to_python_bool(blacklist):
                     # Don't process if blacklist
                     continue
 
@@ -81,39 +97,59 @@ def generate_categories(file_path: str) -> tuple:
     return categories, lookup_table, categories_set
 
 
-def generate_oriented_categories(fp: str) -> dict:
+def get_oriented_cat_values(categories: dict,
+                            lookup_table: dict,
+                            categories_set: set,
+                            id: str, name: str) -> (dict, dict, set):
+    """Generates the category values according to the OBB schema.
+
+    Returns:
+        categories, lookup table, and category set
+    """
+    if 'notehead' in name:
+        categories[int(id) + 1000] = name + 'Online'
+        categories_set.add(name + 'Online')
+        lookup_table[name + 'Online'] = int(id) + 1000
+        name += 'Offline'
+
+    categories[id] = name
+    lookup_table[name] = id
+    categories_set.add(name)
+
+    return categories, lookup_table, categories_set
+
+
+def generate_oriented_categories(fp: str) -> (dict, dict, set):
     """Generates categories according to the OBB schema.
 
     Args:
         fp: path to the class_names.csv file
 
     Returns:
-        A dictionary where the key is the category ID and the value is the
-        name of the category.
+        A tuple of categories with the ID as the key, a lookup table with the
+        name as the key, and a set of the unique category names.
     """
     categories = dict()
     lookup_table = dict()
     categories_set = set()
 
     with open(fp) as class_names:
-        temp_reader = csv.reader(class_names)
-        contains_blacklist = len(next(temp_reader)) == 3
-        del temp_reader
         reader = csv.reader(class_names)
+        contains_blacklist = len(next(reader)) == 3
+        class_names.seek(0)
         if contains_blacklist:
             for id, name, blacklist in reader:
-                if blacklist:
+                if csv_bool_to_python_bool(blacklist):
                     # Don't process if blacklisted.
                     continue
-                if 'notehead' in name:
-                    categories[int(id) + 1000] = name + 'Online'
-                    categories_set.add(name + 'Online')
-                    lookup_table[name + 'Online'] = int(id) + 1000
-                    name += 'Offline'
-
-                categories[id] = name
-                lookup_table[name] = id
-                categories_set.add(name)
+                categories, lookup_table, categories_set = \
+                    get_oriented_cat_values(categories, lookup_table,
+                                            categories_set, id, name)
+        else:
+            for id, name in reader:
+                categories, lookup_table, categories_set = \
+                    get_oriented_cat_values(categories, lookup_table,
+                                            categories_set, id, name)
 
     return categories, lookup_table, categories_set
 
@@ -124,4 +160,3 @@ if __name__ == '__main__':
     )
 
     print(json.dumps(categories, indent=4, separators=(',', ': ')))
-
