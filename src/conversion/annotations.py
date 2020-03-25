@@ -213,6 +213,7 @@ def get_oriented_bbox(aligned_bbox, bin_mask):
 
     bin_indices = np.transpose(np.nonzero(bin_mask))
     min_box = boxPoints(minAreaRect(bin_indices))
+    min_box = np.flip(min_box, 1)  # For some reason this is in the wrong order
     min_box += adders  # shift them to their actual absolute position
 
     return np.concatenate(min_box)
