@@ -1,6 +1,7 @@
 """Append Seg.
 
-Appends "_seg" to all *.png files in a directory.
+Appends "_seg" to all *.png files in a directory. Additionally provides a
+function to also remove everything quickly if necessary.
 
 Author:
     Yvan Satyawan <y_satyawan@hotmail.com>
@@ -18,7 +19,11 @@ def parse_args():
     parser = ArgumentParser(
         description='appends _seg to all *.png files in the given directory'
     )
-    parser.add_argument('DIR', type=str)
+    parser.add_argument('DIR', type=str,
+                        help='the directory to work on')
+    parser.add_argument('-d', '--delete', action='store_true',
+                        help='deletes the _seg ending from all files in the '
+                             'directory')
     return parser.parse_args()
 
 
@@ -34,6 +39,18 @@ def append_seg(dir_path):
         rename(old_name, new_name)
 
 
+def remove_seg(dir_path):
+    for file in tqdm(listdir(dir_path)):
+        old_name = join(dir_path, file)
+        just_name, ext = splitext(file)
+        fixed_name = just_name.strip('_seg')
+        new_name = join(dir_path, fixed_name + ext)
+        rename(old_name, new_name)
+
+
 if __name__ == '__main__':
     args = parse_args()
-    append_seg(args.DIR)
+    if not args.delete:
+        append_seg(args.DIR)
+    else:
+        remove_seg(args.DIR)
