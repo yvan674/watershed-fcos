@@ -78,7 +78,7 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
 
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                          category_lookup: dict, img_lookup: dict,
-                         train_set: set, category_set: set,
+                         train_set: set, category_set: set, val_set: set = None,
                          oriented: bool = False) -> tuple:
     """Generates COCO-like annotations.
 
@@ -96,6 +96,9 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         train_set: A set that includes the image names of every image in the
             training set. Used to separate which annotation list the
             annotation should be appended to.
+        val_set: A set that includes the names of every image in the validation
+            set. If None is given, then it is assumed every file not in the
+            training set are part of the validation set.
         category_set: A set that contains all category names.
         oriented: Whether or not to use the oriented bounding box schema.t
 
@@ -125,6 +128,10 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         # Do checks now
         image_id = img_lookup[img_name]
         img_in_train = img_name in train_set
+        if val_set is not None:
+            img_in_val = img_name in val_set
+        else:
+            img_in_val = not img_in_train
 
         seg_array = np.array(Image.open(segmentation_path))
         # NOTE: seg_array.shape = (height, width)
@@ -189,7 +196,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                     }
                     if img_in_train:
                         train_annotation_list.append(annotation)
-                    else:
+                    elif img_in_val:
                         test_annotation_list.append(annotation)
                 else:
                     if area == 0:
@@ -203,7 +210,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                     }
                     if img_in_train:
                         train_annotation_list[counter] = curr_ann
-                    else:
+                    elif img_in_val:
                         test_annotation_list[counter] = curr_ann
                 file_annotations.append(counter)
                 counter += 1
@@ -211,7 +218,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                 broken_names.add(name)
         if img_in_train:
             train_annotation_lookup[image_id] = file_annotations
-        else:
+        elif img_in_val:
             test_annotation_lookup[image_id] = file_annotations
 
     return (train_annotation_list, test_annotation_list,

@@ -18,13 +18,17 @@ from tqdm import tqdm
 Image.MAX_IMAGE_PIXELS = None
 
 
-def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
+def process_image_dir(dir: str, work_dir: str, training_set: set,
+                      val_set: set = None) -> tuple:
     """Processes dir to produce a COCO-like image list and a lookup table.
 
     Args:
         dir: Directory with images.
         work_dir: Temporary directory to save csv files too.
         training_set: Set of files that should be considered training data.
+        val_set: Set of files that should be considered validation data. If None
+            is given, then it is assumed any file not in the training set is
+            part of the validation set.
 
     Returns:
         A tuple containing the path to the training csv (str),
@@ -95,7 +99,10 @@ def process_image_dir(dir: str, work_dir: str, training_set: set) -> tuple:
         if img_name in training_set:
             train_list.append(data)
         else:
-            val_list.append(data)
+            if val_set is None:
+                val_list.append(data)
+            elif img_name in val_set:
+                val_list.append(data)
 
         if counter % 500 == 0 or counter == len(dir_list):
             train_writer.writerows(train_list)

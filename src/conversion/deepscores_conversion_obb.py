@@ -38,12 +38,21 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         and the second element is the validation OBBAnnotations.
     """
     training_set = set()
+    val_set = set()
 
     # Get the training set and validation split as sets
     with open(osp.join(dir_path, 'train_names.csv')) as train_names:
         reader = csv.reader(train_names)
         for line in reader:
             training_set.add(line[1])
+
+    try:
+        with open(osp.join(dir_path, 'test_names.csv')) as val_names:
+            reader = csv.reader(val_names)
+            for line in reader:
+                val_set.add(line[1])
+    except FileNotFoundError:
+        val_set = None
 
     # Make sure the work directory exists
     work_dir = osp.join(dir_path, 'tmp')
@@ -52,7 +61,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 
     # Process the image directory
     train_img_path, val_img_path, img_lookup = process_image_dir(
-        osp.join(dir_path, 'images_png'), work_dir, training_set
+        osp.join(dir_path, 'images_png'), work_dir, training_set, val_set
     )
 
     # Process the segmentation directory
