@@ -59,12 +59,14 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     if not osp.exists(work_dir):
         os.mkdir(work_dir)
 
+    print('Processing image information...')
     # Process the image directory
     train_img_path, val_img_path, img_lookup = process_image_dir(
         osp.join(dir_path, 'images_png'), work_dir, training_set, val_set
     )
 
     # Process the segmentation directory
+    print('Checking segmentation directory...')
     seg_files = os.listdir(osp.join(dir_path, 'pix_annotations_png'))
     for file in seg_files:
         # Make sure that _seg has been added to the file
@@ -79,13 +81,18 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
                 break
             else:
                 append_seg(osp.join(dir_path, 'pix_annotations_png'))
+                break
+    print('Done!')
 
     # Figure out the classes
+    print("Reading categories...")
     categories, cat_lookup, cat_set = generate_oriented_categories(
         osp.join(dir_path, class_names_fp)
     )
+    print("Done!")
 
     # Process the annotations
+    print("Generating annotations...")
     annotations = generate_annotations(
         pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
         xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
@@ -96,6 +103,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         oriented=True
     )
     train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
+    print("Done!")
 
     # Once that's complete, generate the actual dataset objects.
     train_dataset = OBBAnnotations("DeepScores training set as an OBB Dataset")
