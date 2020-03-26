@@ -24,6 +24,17 @@ from tqdm import tqdm
 from cv2 import minAreaRect, boxPoints
 
 
+# Some objects are not processed by the mask generation code. To deal with
+# these, we'll simply have a set of these objects. If the name is in this set,
+# then the segmentation will simply be the entire aligned bbox area.
+NON_COLORED_NAMES = {'staffLine'}
+OFF_BY_ONE = {'gClef', 'fClef'}
+RENAMED_MAPPINGS = {'dynamicF': 'dynamicForte',
+                    'dynamicP': 'dynamicPiano',
+                    'dynamicM': 'dynamicMezzo',
+                    'combStaff': 'staffLine'}
+
+
 def binary_mask_to_rle(binary_mask):
     rle = {'counts': [], 'size': list(binary_mask.shape)}
     counts = rle.get('counts')
@@ -99,6 +110,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
     test_annotation_list = {} if oriented else []
     train_annotation_lookup = {}
     test_annotation_lookup = {}
+    broken_names = set()
 
     counter = 1
 
@@ -107,7 +119,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
     for file_name in tqdm(file_list):
         img_name = splitext(file_name)[0]
         xml_path = join(xml_annotations_dir, file_name)
-        segmentation_path = join(pix_annotations_dir, img_name + '.png')
+        segmentation_path = join(pix_annotations_dir, img_name + '_seg.png')
         file_annotations = []
 
         # Do checks now
@@ -133,6 +145,8 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                     name += 'Online'
                 else:
                     name += 'Offline'
+            if name in RENAMED_MAPPINGS:
+                name = RENAMED_MAPPINGS[name]
             if name in category_set:
                 # First get category ID
                 category_id = category_lookup[name]
@@ -147,8 +161,20 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
 
                 # Then turn it into a binary mask
                 class_color = int(category_id)
-                bin_mask, area = generate_binary_mask(extracted_seg,
-                                                      class_color)
+
+                # SORRY THIS IS SO HACKY
+                # Reprocessing the original file just takes way too long
+                if class_color > 1000:       # Online/Offline offset
+                    class_color -= 1000
+                if name in OFF_BY_ONE:
+                    class_color -= 1
+
+                if name in NON_COLORED_NAMES:
+                    bin_mask = np.ones_like(extracted_seg)
+                    area = bin_mask.size
+                else:
+                    bin_mask, area = generate_binary_mask(extracted_seg,
+                                                          class_color)
 
                 if not oriented:
                     rle_segmentation = binary_mask_to_rle(bin_mask)
@@ -166,6 +192,8 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                     else:
                         test_annotation_list.append(annotation)
                 else:
+                    if area == 0:
+                        bin_mask = np.ones_like(bin_mask)
                     oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
                     curr_ann = {
                         'bbox': [float(x) for x in oriented_bbox],
@@ -179,6 +207,8 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                         test_annotation_list[counter] = curr_ann
                 file_annotations.append(counter)
                 counter += 1
+            else:
+                broken_names.add(name)
         if img_in_train:
             train_annotation_lookup[image_id] = file_annotations
         else:

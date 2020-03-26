@@ -15,6 +15,7 @@ from conversion import OBBAnnotations, process_image_dir, \
     image_csv_to_dict
 import csv
 import argparse
+from utils.append_seg import append_seg
 
 
 def parse_argument():
@@ -49,16 +50,34 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     if not osp.exists(work_dir):
         os.mkdir(work_dir)
 
-    train_img_path, val_img_path, img_lookup = \
-        process_image_dir(osp.join(dir_path, 'images_png'), work_dir,
-                          training_set)
+    # Process the image directory
+    train_img_path, val_img_path, img_lookup = process_image_dir(
+        osp.join(dir_path, 'images_png'), work_dir, training_set
+    )
 
-    categories, cat_lookup, cat_set = generate_oriented_categories(osp.join(
-        dir_path, class_names_fp
-    ))
+    # Process the segmentation directory
+    seg_files = os.listdir(osp.join(dir_path, 'pix_annotations_png'))
+    for file in seg_files:
+        # Make sure that _seg has been added to the file
+        ext = osp.splitext(file)
+        if '.png' not in ext:
+            # We only expect _seg in png file names so we ignore the file if
+            # it's not a png file
+            continue
+        else:
+            if '_seg' in file:
+                # We can assume that if one file has '_seg' all files have it
+                break
+            else:
+                append_seg(osp.join(dir_path, 'pix_annotations_png'))
 
-    train_ann, val_ann, train_ann_lookup, val_ann_lookup = \
-    generate_annotations(
+    # Figure out the classes
+    categories, cat_lookup, cat_set = generate_oriented_categories(
+        osp.join(dir_path, class_names_fp)
+    )
+
+    # Process the annotations
+    annotations = generate_annotations(
         pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
         xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
         category_lookup=cat_lookup,
@@ -67,6 +86,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         category_set=cat_set,
         oriented=True
     )
+    train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
 
     # Once that's complete, generate the actual dataset objects.
     train_dataset = OBBAnnotations("DeepScores training set as an OBB Dataset")
@@ -84,6 +104,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     val_dataset.add_annotations(val_ann)
 
     return train_dataset, val_dataset
+
 
 if __name__ == '__main__':
     arguments = parse_argument()

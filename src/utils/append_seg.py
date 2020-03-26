@@ -22,7 +22,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def main(dir_path):
+def append_seg(dir_path):
     files = listdir(dir_path)
 
     for file in tqdm(files):
@@ -36,4 +36,4 @@ def main(dir_path):
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args.DIR)
+    append_seg(args.DIR)
