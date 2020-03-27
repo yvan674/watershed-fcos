@@ -31,6 +31,18 @@ def parse_argument():
     return parser.parse_args()
 
 
+def ask(question: str = 'Continue?') -> bool:
+    """Asks the user to continue or not."""
+    response = input(f'{question}[y/n] ')
+    while True:
+        if response == 'n':
+            return False
+        elif response == 'y':
+            return True
+        else:
+            response = input('Please type [y] or [n] ')
+
+
 def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     """Does the actual conversion.
 
@@ -81,15 +93,12 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 
     print(f'Found {num_train_imgs} training images and {num_test_imgs} '
           'validation images.')
-    responded = False
-    response = input('Continue?[Y/n] ')
-    while not responded:
-        if response in {'y', 'n'}:
-            responded = True
-            if response == 'n':
-                exit()
-        else:
-            response = input('Please type [y] or [n] ')
+
+    if not ask():
+        if ask('Delete tmp files?'):
+            # Deletes all tmp files
+            os.removedirs(osp.join(dir_path, 'tmp'))
+        exit()
 
     # Process the segmentation directory
     print('Checking segmentation directory...')
