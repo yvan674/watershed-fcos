@@ -52,6 +52,8 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
             for line in reader:
                 val_set.add(line[1])
     except FileNotFoundError:
+        print("WARNING: test_names.csv has not been found. Assuming every file "
+              "not in train_names.csv is part of the validation set.")
         val_set = None
 
     # Make sure the work directory exists
