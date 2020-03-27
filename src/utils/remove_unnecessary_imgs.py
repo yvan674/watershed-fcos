@@ -29,8 +29,10 @@ if __name__ == '__main__':
     args = parse_args()
 
     print('Loading annotations...')
-    train_json = json.load(join(args.DIR, args.TRAIN))
-    val_json = json.load(join(args.DIR, args.VAL))
+    with open(join(args.DIR, args.TRAIN)) as json_file:
+        train_json = json.load(json_file)
+    with open(join(args.DIR, args.VAL)) as json_file:
+        val_json = json.load(join(args.DIR, args.VAL))
 
     files_to_remove = []
 
