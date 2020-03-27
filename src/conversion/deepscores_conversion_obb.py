@@ -10,6 +10,7 @@ Created on:
 """
 import os.path as osp
 import os
+from shutil import rmtree
 from conversion import OBBAnnotations, process_image_dir, \
     generate_oriented_categories, generate_annotations, \
     image_csv_to_dict
@@ -97,7 +98,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     if not ask():
         if ask('Delete tmp files?'):
             # Deletes all tmp files
-            os.removedirs(osp.join(dir_path, 'tmp'))
+            rmtree(osp.join(dir_path, 'tmp'), ignore_errors=True)
         exit()
 
     # Process the segmentation directory
