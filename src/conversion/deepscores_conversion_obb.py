@@ -16,6 +16,7 @@ from conversion import OBBAnnotations, process_image_dir, \
 import csv
 import argparse
 from utils.append_seg import append_seg
+from sys import exit
 
 
 def parse_argument():
@@ -66,6 +67,29 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     train_img_path, val_img_path, img_lookup = process_image_dir(
         osp.join(dir_path, 'images_png'), work_dir, training_set, val_set
     )
+
+    # Verification step
+    num_train_imgs = 0
+    num_test_imgs = 0
+    with open(train_img_path, 'r') as file:
+        for _ in file:
+            num_train_imgs += 1
+
+    with open(val_img_path, 'r') as file:
+        for _ in file:
+            num_test_imgs += 1
+
+    print(f'Found {num_train_imgs} training images and {num_test_imgs} '
+          'validation images.')
+    responded = False
+    response = input('Continue?[Y/n] ')
+    while not responded:
+        if response in {'y', 'n'}:
+            responded = True
+            if response == 'n':
+                exit()
+        else:
+            response = input('Please type [y] or [n] ')
 
     # Process the segmentation directory
     print('Checking segmentation directory...')
