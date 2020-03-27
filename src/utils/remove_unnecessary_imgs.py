@@ -32,7 +32,7 @@ if __name__ == '__main__':
     with open(join(args.DIR, args.TRAIN)) as json_file:
         train_json = json.load(json_file)
     with open(join(args.DIR, args.VAL)) as json_file:
-        val_json = json.load(join(args.DIR, args.VAL))
+        val_json = json.load(json_file)
 
     files_to_remove = []
 
