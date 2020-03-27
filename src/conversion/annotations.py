@@ -90,9 +90,6 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         category_lookup: A lookup table to get the category ID of every named
             category.
         img_lookup: A lookup table to get the image_id of every named image.
-        class_colors: A lookup table to get the brightness value for every
-            category. Used to make sure that we only get the binary mask of
-            the one object, in case there's a bounding box overlap.
         train_set: A set that includes the image names of every image in the
             training set. Used to separate which annotation list the
             annotation should be appended to.
@@ -121,17 +118,20 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
 
     for file_name in tqdm(file_list):
         img_name = splitext(file_name)[0]
-        xml_path = join(xml_annotations_dir, file_name)
-        segmentation_path = join(pix_annotations_dir, img_name + '_seg.png')
-        file_annotations = []
 
-        # Do checks now
-        image_id = img_lookup[img_name]
         img_in_train = img_name in train_set
         if val_set is not None:
             img_in_val = img_name in val_set
         else:
             img_in_val = not img_in_train
+
+        if not (img_in_val or img_in_train):
+            continue
+
+        xml_path = join(xml_annotations_dir, file_name)
+        segmentation_path = join(pix_annotations_dir, img_name + '_seg.png')
+        file_annotations = []
+        image_id = img_lookup[img_name]
 
         seg_array = np.array(Image.open(segmentation_path))
         # NOTE: seg_array.shape = (height, width)

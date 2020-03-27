@@ -82,8 +82,8 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     )
 
     # Verification step
-    num_train_imgs = 0
-    num_test_imgs = 0
+    num_train_imgs = -1  # To account for header row
+    num_test_imgs = -1
     with open(train_img_path, 'r') as file:
         for _ in file:
             num_train_imgs += 1
@@ -135,6 +135,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         category_lookup=cat_lookup,
         img_lookup=img_lookup,
         train_set=training_set,
+        val_set=val_set,
         category_set=cat_set,
         oriented=True
     )
