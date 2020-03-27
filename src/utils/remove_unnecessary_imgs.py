@@ -50,7 +50,7 @@ if __name__ == '__main__':
             files_to_remove.append(join(args.DIR, 'images_png', img))
 
     for seg in seg_files:
-        if seg.strip('_seg') not in good_files:
+        if seg.strip('_seg.png') not in good_files:
             files_to_remove.append(join(args.DIR, 'pix_annotations_png', seg))
 
     print(f'Removing {len(files_to_remove)} files...')
