@@ -28,6 +28,8 @@ def parse_args():
                    help='paths of the annotation file to process')
     p.add_argument('OUT', type=str,
                    help='path of the dir to write the csv file out to')
+    p.add_argument('-x', action='store_true',
+                   help='only calculates whitespace')
     return p.parse_args()
 
 
@@ -54,6 +56,20 @@ def process_ann_row(row):
     return pd.Series(result, index=indices)
 
 
+def calc_whitespace(x):
+    if x['a_area'] == 0:
+        a_ws = 0.
+    else:
+        a_ws = x['area'] / x['a_area']
+
+    if x['o_area'] == 0:
+        o_ws = 0.
+    else:
+        o_ws = x['area'] / x['o_area']
+
+    return pd.Series([a_ws, o_ws], index=['a_ws', 'o_ws'])
+
+
 def calc_overlaps(row, index, a_bbox, o_bbox):
     indices = ['a_ol', 'o_ol']
 
@@ -67,28 +83,35 @@ def calc_overlaps(row, index, a_bbox, o_bbox):
     o_br = row['o_bbox']  # oriented_bbox_row
     o_bv = o_bbox     # oriented_bbox_val
 
-    # Create Polygon from row and value oriented bboxes
-    pr = Polygon([(x, y) for x, y in zip(o_br[::2], o_br[1::2])])
-    pv = Polygon([(x, y) for x, y in zip(o_bv[::2], o_bv[1::2])])
+
 
     a_olx = a_br[2] >= a_bv[0] and a_bv[2] >= a_br[0]  # aligned_overlap_x
     a_oly = a_br[3] >= a_bv[1] and a_bv[3] >= a_bv[1]  # aligned_overlap_y
     a_ol = a_olx and a_oly
 
-    o_ol = pv.intersects(pr)
+    # Only check for oriented intersection if aligned has overlap
+    if a_ol:
+        # Create Polygon from row and value oriented bboxes
+        pr = Polygon([(x, y) for x, y in zip(o_br[::2], o_br[1::2])])
+        pv = Polygon([(x, y) for x, y in zip(o_bv[::2], o_bv[1::2])])
+
+        o_ol = pv.intersects(pr)
+    else:
+        o_ol = False
 
     results = [a_ol, o_ol]
 
     return pd.Series(results, index=indices)
 
 
-def main(ann_file, out_dir):
+def main(ann_file, out_dir, whitespace_only):
     """Main loop.
 
     Calculates whitespace in each bbox and overlaps
 
     :param str ann_file: Path to the annotation file to get statistics for.
     :param str out_dir: Where to output the results to.
+    :param bool whitespace_only: Only calculate whitespace results.
     """
     pandarallel.initialize()
 
@@ -116,8 +139,8 @@ def main(ann_file, out_dir):
     for img in tqdm(imgs, unit='imgs'):
         ann_ids = [str(i) for i in img['ann_ids']]
         img_anns = anns.loc[ann_ids]
-        processed = img_anns.apply(process_ann_row, axis=1)
-        # processed = processed.loc[processed['area'] > 0]
+        processed = img_anns.parallel_apply(process_ann_row, axis=1)
+        processed = processed.loc[processed['area'] > 0]
 
         # Now we have a new dataframe with all the info we need.
         for k in cats.keys():
@@ -125,27 +148,23 @@ def main(ann_file, out_dir):
             if len(this_cat) == 0:
                 continue
             # Process whitespace first
-            ws = this_cat.apply(
-                lambda x: pd.Series([x['area'] / x['a_area'],
-                                     x['area'] / x['o_area']],
-                                    index=['a_ws', 'o_ws']),
-                axis=1
-            )
+            ws = this_cat.parallel_apply(calc_whitespace, axis=1)
             ws = ws.apply(np.sum)
             a_ws[k] += ws['a_ws']
             o_ws[k] += ws['o_ws']
 
         # Then process overlaps
-        for ann in processed.itertuples():
-            overlaps = processed.parallel_apply(
-                calc_overlaps,
-                axis=1,
-                args=(ann.Index, ann.a_bbox, ann.o_bbox)
-            )
-            overlaps = overlaps.apply(np.sum)
-            c_id = str(ann.cat_id)
-            a_ol[c_id] += overlaps['a_ol']
-            o_ol[c_id] += overlaps['o_ol']
+        if not whitespace_only:
+            for ann in processed.itertuples():
+                overlaps = processed.parallel_apply(
+                    calc_overlaps,
+                    axis=1,
+                    args=(ann.Index, ann.a_bbox, ann.o_bbox)
+                )
+                overlaps = overlaps.apply(np.sum)
+                c_id = str(ann.cat_id)
+                a_ol[c_id] += overlaps['a_ol']
+                o_ol[c_id] += overlaps['o_ol']
 
     print('Doing final post_processing...')
     # count number for each cat_id so we can average later
@@ -160,17 +179,18 @@ def main(ann_file, out_dir):
     lines = ['cat_id,aligned_whitespace,oriented_whitespace,aligned_overlap,'
              'oriented_overlap\n']
     for k in cats.keys():
-        mean_a_ws += a_ws[k]
-        mean_a_ol += a_ol[k]
-        mean_o_ws += o_ws[k]
-        mean_o_ol += o_ol[k]
+        if k in cat_counts.index:
+            mean_a_ws += a_ws[k]
+            mean_a_ol += a_ol[k]
+            mean_o_ws += o_ws[k]
+            mean_o_ol += o_ol[k]
 
-        a_ws[k] /= cat_counts[k]
-        o_ws[k] /= cat_counts[k]
-        a_ol[k] /= cat_counts[k]
-        o_ol[k] /= cat_counts[k]
+            a_ws[k] /= cat_counts[k]
+            o_ws[k] /= cat_counts[k]
+            a_ol[k] /= cat_counts[k]
+            o_ol[k] /= cat_counts[k]
 
-        lines.append(f'{k},{a_ws[k]},{o_ws[k]},{a_ol[k]},{o_ol[k]}\n')
+            lines.append(f'{k},{a_ws[k]},{o_ws[k]},{a_ol[k]},{o_ol[k]}\n')
 
     total_anns = len(anns)
     mean_a_ws /= total_anns
@@ -189,4 +209,4 @@ def main(ann_file, out_dir):
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args.ANN, args.OUT)
+    main(args.ANN, args.OUT, args.x)
