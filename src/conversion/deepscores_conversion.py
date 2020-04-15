@@ -83,6 +83,8 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 
 
 if __name__ == '__main__':
+    raise DeprecationWarning("This script is deprecated. Use "
+                             "deepscores_conversion_obb.py instead.")
     arguments = parse_argument()
 
     dir_path = arguments.DIR[0]
