@@ -67,9 +67,11 @@ def generate_categories(file_path: str) -> tuple:
                 if super_category == "notehead":
                     categories.append({
                         'supercategory': super_category,
-                        'id': id,
+                        'id': str(int(id) + 1000),
                         'name': name + 'Online'
                     })
+                    lookup_table[name + 'Online'] = str(int(id) + 1000)
+                    categories_set.add(name + 'Online')
                     categories.append({
                         'supercategory': super_category,
                         'id': id,
@@ -81,6 +83,8 @@ def generate_categories(file_path: str) -> tuple:
                         'id': id,
                         'name': name
                     })
+                lookup_table[name] = id
+                categories_set.add(name)
         else:
             for id, name in reader:
                 split_name = camel_case_split(name)
@@ -91,8 +95,8 @@ def generate_categories(file_path: str) -> tuple:
                     'id': id,
                     'name': name
                 })
-        lookup_table[name] = id
-        categories_set.add(name)
+                lookup_table[name] = id
+                categories_set.add(name)
 
     return categories, lookup_table, categories_set
 

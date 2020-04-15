@@ -18,12 +18,12 @@ from tqdm import tqdm
 Image.MAX_IMAGE_PIXELS = None
 
 
-def process_image_dir(dir: str, work_dir: str, training_set: set,
+def process_image_dir(dir_path: str, work_dir: str, training_set: set,
                       val_set: set = None) -> tuple:
     """Processes dir to produce a COCO-like image list and a lookup table.
 
     Args:
-        dir: Directory with images.
+        dir_path: Directory with images.
         work_dir: Temporary directory to save csv files too.
         training_set: Set of files that should be considered training data.
         val_set: Set of files that should be considered validation data. If None
@@ -36,7 +36,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set,
     """
     counter = 1
     lookup_table = dict()
-    dir_list = listdir(dir)
+    dir_list = listdir(dir_path)
 
     train_fp = join(work_dir, 'training_list.csv')
     val_fp = join(work_dir, 'validation_list.csv')
@@ -80,7 +80,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set,
     val_list = []
 
     for image in tqdm(dir_list):
-        img_file = Image.open(join(dir, image))
+        img_file = Image.open(join(dir_path, image))
         width, height = img_file.size
         data = {
             'license': 1,
@@ -124,19 +124,18 @@ def process_image_dir(dir: str, work_dir: str, training_set: set,
 
     print("Done processing images!")
 
-    return join(work_dir, 'training_list.csv'), \
-           join(work_dir, 'validation_list.csv'), \
-           lookup_table
+    return (join(work_dir, 'training_list.csv'),
+            join(work_dir, 'validation_list.csv'),
+            lookup_table)
 
 
-def image_csv_to_dict(fp:str, style:str, ann_lookup:dict=None) -> list:
+def image_csv_to_dict(fp: str, style: str, ann_lookup: dict = None) -> list:
     """Reads the image csv file and turns it into a list of dictionaries.
 
     Args:
         fp: Path to the csv file.
         style: Which style to return. Possible options are 'coco', 'obb'
-        train_ann_lookup: Training annotations lookup.
-        val_ann_lookup: Validation annotations lookup.
+        ann_lookup: annotations lookup.
 
     Returns:
         The list of images as dictionaries according to the required style.

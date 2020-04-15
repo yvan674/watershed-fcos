@@ -1,6 +1,7 @@
 """DeepScores conversion.
 
 Converts DeepScores styled annotations to COCO style annotations.
+This is now redundant as the obb script also converts to coco
 
 Author:
     Yvan Satyawan <y_satyawan@hotmail.com>
@@ -36,6 +37,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         and the second element is the validation CocoLikeAnnotations.
     """
     training_set = set()
+    val_set = set()
 
     # Get the training set and validation split as sets
     with open(join(dir_path, 'train_names.csv')) as train_names:
@@ -43,13 +45,24 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         for line in reader:
             training_set.add(line[1])
 
-    # Make the work dir if it doesn't exist
+    try:
+        with open(join(dir_path, 'test_names.csv')) as val_names:
+            reader = csv.reader(val_names)
+            for line in reader:
+                val_set.add(line[1])
+    except FileNotFoundError:
+        print("WARNING: test_names.csv has not been found. Assuming every file "
+              "not in train_names.csv is part of the validation set.")
+        val_set = None
+
+    # Make the work dir_path if it doesn't exist
     work_dir = join(dir_path, 'tmp')
     if not exists(work_dir):
         mkdir(work_dir)
 
     train_img_path, val_img_path, img_lookup = \
-        process_image_dir(join(dir_path, 'images_png'), work_dir, training_set)
+        process_image_dir(join(dir_path, 'images_png'), work_dir, training_set,
+                          val_set)
 
     # This is quick so we don't need to save results to disk
     categories, cat_lookup, cat_set = generate_categories(join(dir_path,

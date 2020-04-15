@@ -183,6 +183,8 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                     bin_mask, area = generate_binary_mask(extracted_seg,
                                                           class_color)
 
+                if area == 0:
+                    continue
                 if not oriented:
                     rle_segmentation = binary_mask_to_rle(bin_mask)
                     annotation = {

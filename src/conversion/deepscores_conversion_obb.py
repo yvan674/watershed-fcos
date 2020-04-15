@@ -13,11 +13,11 @@ import os
 from shutil import rmtree
 from conversion import OBBAnnotations, process_image_dir, \
     generate_oriented_categories, generate_annotations, \
-    image_csv_to_dict
+    image_csv_to_dict, CocoLikeAnnotations, generate_categories
 import csv
 import argparse
-from utils.append_seg import append_seg
 from sys import exit
+from tqdm import tqdm
 
 
 def parse_argument():
@@ -28,6 +28,8 @@ def parse_argument():
                         help='path to the directory containing the dataset')
     parser.add_argument('CLASSES', type=str,
                         help='path to the file containing the class names list')
+    parser.add_argument('-o', '--oriented', action='store_true',
+                       help='output using OBB schema')
 
     return parser.parse_args()
 
@@ -44,7 +46,7 @@ def ask(question: str = 'Continue?') -> bool:
             response = input('Please type [y] or [n] ')
 
 
-def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
+def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
     """Does the actual conversion.
 
     Returns:
@@ -103,28 +105,32 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 
     # Process the segmentation directory
     print('Checking segmentation directory...')
+    seg_dir = osp.join(dir_path, 'pix_annotations_png')
     seg_files = os.listdir(osp.join(dir_path, 'pix_annotations_png'))
-    for file in seg_files:
+    for file in tqdm(seg_files):
         # Make sure that _seg has been added to the file
         ext = osp.splitext(file)
         if '.png' not in ext:
             # We only expect _seg in png file names so we ignore the file if
             # it's not a png file
             continue
+        elif '_seg' in file:
+            continue
         else:
-            if '_seg' in file:
-                # We can assume that if one file has '_seg' all files have it
-                break
-            else:
-                append_seg(osp.join(dir_path, 'pix_annotations_png'))
-                break
+            os.rename(osp.join(seg_dir, file),
+                      osp.join(seg_dir, ext[0] + '_seg' + ext[1]))
     print('Done!')
 
     # Figure out the classes
     print("Reading categories...")
-    categories, cat_lookup, cat_set = generate_oriented_categories(
-        osp.join(dir_path, class_names_fp)
-    )
+    if obb:
+        categories, cat_lookup, cat_set = generate_oriented_categories(
+            osp.join(dir_path, class_names_fp)
+        )
+    else:
+        categories, cat_lookup, cat_set = generate_categories(
+            osp.join(dir_path, class_names_fp)
+        )
     print("Done!")
 
     # Process the annotations
@@ -137,18 +143,31 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         train_set=training_set,
         val_set=val_set,
         category_set=cat_set,
-        oriented=True
+        oriented=obb
     )
     train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
     print("Done!")
 
-    # Once that's complete, generate the actual dataset objects.
-    train_dataset = OBBAnnotations("DeepScores training set as an OBB Dataset")
-    val_dataset = OBBAnnotations("DeepScores validation set as an OBB dataset")
+    if obb:
+        ds = OBBAnnotations
+        train_desc = "Deepscores training set in the OBB format"
+        val_desc = "Deepscores validation set in the OBB format"
+        img_style = 'obb'
+    else:
+        ds = CocoLikeAnnotations
+        train_desc = "Deepscores training set in the COCO format"
+        val_desc = "Deepscores validation set in the COCO format"
+        img_style = 'coco'
 
-    train_dataset.add_images(image_csv_to_dict(train_img_path, 'obb',
+
+    # Once that's complete, generate the actual dataset objects.
+    train_dataset = ds(train_desc)
+    val_dataset = ds(val_desc)
+
+
+    train_dataset.add_images(image_csv_to_dict(train_img_path, img_style,
                                                train_ann_lookup))
-    val_dataset.add_images(image_csv_to_dict(val_img_path, 'obb',
+    val_dataset.add_images(image_csv_to_dict(val_img_path, img_style,
                                              val_ann_lookup))
 
     train_dataset.add_categories(categories)
@@ -163,12 +182,15 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 if __name__ == '__main__':
     arguments = parse_argument()
 
-    train, val = do_conversion(arguments.DIR, arguments.CLASSES)
+    train, val = do_conversion(arguments.DIR, arguments.CLASSES,
+                               arguments.oriented)
+
+    name_prefix = 'deepscores_oriented' if arguments.oriented else 'deepscores'
 
     print('\nWriting training annotation file to disk...')
-    train.output_json(osp.join(arguments.DIR, 'deepscores_oriented_train.json'))
+    train.output_json(osp.join(arguments.DIR, name_prefix + '_train.json'))
 
     print('\nWriting validation annotation file to disk...')
-    val.output_json(osp.join(arguments.DIR, 'deepscores_oriented_val.json'))
+    val.output_json(osp.join(arguments.DIR, name_prefix + '_val.json'))
 
     print('\nConversion completed!')

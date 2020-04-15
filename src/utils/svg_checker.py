@@ -59,7 +59,7 @@ def copy_over(ly_dir, new_dir, bad_file):
     with open(bad_file, mode='r') as bf:
         bad_files = [line.rstrip('\n') for line in bf]
 
-    # Make sure the new dir exists
+    # Make sure the new dir_path exists
     if not osp.exists(new_dir):
         os.mkdir(new_dir)
 
