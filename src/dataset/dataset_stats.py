@@ -30,6 +30,8 @@ def parse_args():
                    help='path of the dir to write the csv file out to')
     p.add_argument('-x', action='store_true',
                    help='only calculates whitespace')
+    p.add_argument('-n', type=int, nargs='?',
+                   help='number of workers to use')
     return p.parse_args()
 
 
@@ -60,12 +62,12 @@ def calc_whitespace(x):
     if x['a_area'] == 0:
         a_ws = 0.
     else:
-        a_ws = x['area'] / x['a_area']
+        a_ws = 1 - (x['area'] / x['a_area'])
 
     if x['o_area'] == 0:
         o_ws = 0.
     else:
-        o_ws = x['area'] / x['o_area']
+        o_ws = 1 - (x['area'] / x['o_area'])
 
     return pd.Series([a_ws, o_ws], index=['a_ws', 'o_ws'])
 
@@ -79,21 +81,25 @@ def calc_overlaps(row, index, a_bbox, o_bbox):
 
     # Calc aligned overlap
     a_br = row['a_bbox']  # aligned_bbox_row
-    a_bv = a_bbox     # aligned_bbox_val
+    a_bv = a_bbox         # aligned_bbox_val
     o_br = row['o_bbox']  # oriented_bbox_row
-    o_bv = o_bbox     # oriented_bbox_val
+    o_bv = o_bbox         # oriented_bbox_val
 
-
-
-    a_olx = a_br[2] >= a_bv[0] and a_bv[2] >= a_br[0]  # aligned_overlap_x
-    a_oly = a_br[3] >= a_bv[1] and a_bv[3] >= a_bv[1]  # aligned_overlap_y
-    a_ol = a_olx and a_oly
+    a_ol = a_br[2] >= a_bv[0]  # aligned_overlap
+    if a_ol:
+        a_ol &= a_bv[2] >= a_br[0]
+        if a_ol:
+            a_ol &= a_br[3] >= a_bv[1]
+            if a_ol:
+                a_ol &= a_bv[3] >= a_bv[1]
 
     # Only check for oriented intersection if aligned has overlap
     if a_ol:
         # Create Polygon from row and value oriented bboxes
-        pr = Polygon([(x, y) for x, y in zip(o_br[::2], o_br[1::2])])
-        pv = Polygon([(x, y) for x, y in zip(o_bv[::2], o_bv[1::2])])
+        pr = Polygon(
+            [(x, y) for x, y in zip(o_br[::2], o_br[1::2])])
+        pv = Polygon(
+            [(x, y) for x, y in zip(o_bv[::2], o_bv[1::2])])
 
         o_ol = pv.intersects(pr)
     else:
@@ -104,7 +110,7 @@ def calc_overlaps(row, index, a_bbox, o_bbox):
     return pd.Series(results, index=indices)
 
 
-def main(ann_file, out_dir, whitespace_only):
+def main(ann_file, out_dir, whitespace_only, num_workers=None):
     """Main loop.
 
     Calculates whitespace in each bbox and overlaps
@@ -112,8 +118,12 @@ def main(ann_file, out_dir, whitespace_only):
     :param str ann_file: Path to the annotation file to get statistics for.
     :param str out_dir: Where to output the results to.
     :param bool whitespace_only: Only calculate whitespace results.
+    :param int num_workers: Number of workers to initialize for pandarallel
     """
-    pandarallel.initialize()
+    if num_workers is None:
+        pandarallel.initialize()
+    else:
+        pandarallel.initialize(nb_workers=num_workers)
 
     if not exists(out_dir):
         mkdir(out_dir)
@@ -136,11 +146,14 @@ def main(ann_file, out_dir, whitespace_only):
         a_ol[k] = 0.
         o_ol[k] = 0.
 
+    total_anns = 0
+
     for img in tqdm(imgs, unit='imgs'):
         ann_ids = [str(i) for i in img['ann_ids']]
         img_anns = anns.loc[ann_ids]
-        processed = img_anns.parallel_apply(process_ann_row, axis=1)
+        processed = img_anns.apply(process_ann_row, axis=1)
         processed = processed.loc[processed['area'] > 0]
+        total_anns += len(processed)
 
         # Now we have a new dataframe with all the info we need.
         for k in cats.keys():
@@ -148,7 +161,7 @@ def main(ann_file, out_dir, whitespace_only):
             if len(this_cat) == 0:
                 continue
             # Process whitespace first
-            ws = this_cat.parallel_apply(calc_whitespace, axis=1)
+            ws = this_cat.apply(calc_whitespace, axis=1)
             ws = ws.apply(np.sum)
             a_ws[k] += ws['a_ws']
             o_ws[k] += ws['o_ws']
@@ -192,13 +205,12 @@ def main(ann_file, out_dir, whitespace_only):
 
             lines.append(f'{k},{a_ws[k]},{o_ws[k]},{a_ol[k]},{o_ol[k]}\n')
 
-    total_anns = len(anns)
     mean_a_ws /= total_anns
     mean_a_ol /= total_anns
     mean_o_ws /= total_anns
     mean_o_ol /= total_anns
 
-    lines.append(f'mean,{mean_a_ws},{mean_o_ws},{mean_a_ol},{mean_o_ws}\n')
+    lines.append(f'mean,{mean_a_ws},{mean_o_ws},{mean_a_ol},{mean_o_ol}\n')
 
     print('Writing out file...')
     with open(join(out_dir, 'results.csv'), mode='w') as fp:
@@ -209,4 +221,4 @@ def main(ann_file, out_dir, whitespace_only):
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args.ANN, args.OUT, args.x)
+    main(args.ANN, args.OUT, args.x, args.n)
