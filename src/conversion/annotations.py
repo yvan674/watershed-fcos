@@ -203,16 +203,17 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                         bin_mask = np.ones_like(bin_mask)
                     oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
                     curr_ann = {
-                        'bbox': [float(x) for x in oriented_bbox],
+                        'a_bbox': aligned_bbox,
+                        'o_bbox': oriented_bbox.tolist(),
                         'cat_id': category_id,
                         'area': area,
-                        'img_id': image_id
+                        'img_id': str(image_id)
                     }
                     if img_in_train:
-                        train_annotation_list[counter] = curr_ann
+                        train_annotation_list[str(counter)] = curr_ann
                     elif img_in_val:
-                        test_annotation_list[counter] = curr_ann
-                file_annotations.append(counter)
+                        test_annotation_list[str(counter)] = curr_ann
+                file_annotations.append(str(counter))
                 counter += 1
             else:
                 broken_names.add(name)

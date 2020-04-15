@@ -90,7 +90,7 @@ def process_image_dir(dir: str, work_dir: str, training_set: set,
             'width': width,
             'date_captured': '1970-01-01 00:00:00',
             'flickr_url': 'not_on_flickr',
-            'id': counter
+            'id': str(counter)
         }
         img_name = splitext(image)[0]
         lookup_table[img_name] = counter
