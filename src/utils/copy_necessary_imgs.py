@@ -39,9 +39,9 @@ if __name__ == '__main__':
     imgs_to_copy = []
     seg_to_copy = []
 
-    train_files = [splitext(img['file_name'])[0]
+    train_files = [splitext(img['filename'])[0]
                    for img in train_json['images']]
-    val_files = [splitext(img['file_name'])[0]
+    val_files = [splitext(img['filename'])[0]
                  for img in val_json['images']]
 
     good_files = set(train_files) | set(val_files)
