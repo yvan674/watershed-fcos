@@ -80,6 +80,13 @@ def process_image_dir(dir_path: str, work_dir: str, training_set: set,
     val_list = []
 
     for image in tqdm(dir_list):
+        img_name = splitext(image)[0]
+
+        if val_set is not None and not (img_name in training_set
+                                        or img_name in val_set):
+            continue
+
+
         img_file = Image.open(join(dir_path, image))
         width, height = img_file.size
         data = {
@@ -92,7 +99,6 @@ def process_image_dir(dir_path: str, work_dir: str, training_set: set,
             'flickr_url': 'not_on_flickr',
             'id': str(counter)
         }
-        img_name = splitext(image)[0]
         lookup_table[img_name] = counter
 
         # Append to the appropriate list
