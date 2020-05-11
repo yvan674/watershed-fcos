@@ -121,14 +121,12 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
 
     # Figure out the classes
     print("Reading categories...")
+    if not osp.isabs(class_names_fp):
+        class_names_fp = osp.join(dir_path, class_names_fp)
     if obb:
-        categories = generate_oriented_categories(
-            osp.join(dir_path, class_names_fp)
-        )
+        categories = generate_oriented_categories(class_names_fp)
     else:
-        categories, cat_lookup, cat_set = generate_categories(
-            osp.join(dir_path, class_names_fp)
-        )
+        categories, cat_lookup, cat_set = generate_categories(class_names_fp)
     print("Done!")
 
     # Process the annotations
