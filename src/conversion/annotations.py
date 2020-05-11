@@ -112,9 +112,8 @@ def generate_oriented_annotations(pix_annotations_dir: str,
     val_ann_lookup = dict()
 
     # Change index of categories to use the xml name
-    categories.set_index('xml_name', inplace=True)
-
     cat_set = set(categories['xml_name'].to_list())
+    categories.set_index('xml_name', inplace=True)
 
     counter = 1
 
