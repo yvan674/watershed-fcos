@@ -11,6 +11,7 @@ References:
         in-python>
 """
 import csv
+import pandas as pd
 from re import finditer
 import json
 
@@ -101,61 +102,16 @@ def generate_categories(file_path: str) -> tuple:
     return categories, lookup_table, categories_set
 
 
-def get_oriented_cat_values(categories: dict,
-                            lookup_table: dict,
-                            categories_set: set,
-                            id: str, name: str) -> (dict, dict, set):
-    """Generates the category values according to the OBB schema.
-
-    Returns:
-        categories, lookup table, and category set
-    """
-    if 'notehead' in name:
-        categories[int(id) + 1000] = name + 'Online'
-        categories_set.add(name + 'Online')
-        lookup_table[name + 'Online'] = int(id) + 1000
-        name += 'Offline'
-
-    categories[id] = name
-    lookup_table[name] = id
-    categories_set.add(name)
-
-    return categories, lookup_table, categories_set
-
-
-def generate_oriented_categories(fp: str) -> (dict, dict, set):
+def generate_oriented_categories(fp: str) -> pd.DataFrame:
     """Generates categories according to the OBB schema.
 
     Args:
         fp: path to the class_names.csv file
 
     Returns:
-        A tuple of categories with the ID as the key, a lookup table with the
-        name as the key, and a set of the unique category names.
+        DataFrame of the categories csv file.
     """
-    categories = dict()
-    lookup_table = dict()
-    categories_set = set()
-
-    with open(fp) as class_names:
-        reader = csv.reader(class_names)
-        contains_blacklist = len(next(reader)) == 3
-        class_names.seek(0)
-        if contains_blacklist:
-            for id, name, blacklist in reader:
-                if csv_bool_to_python_bool(blacklist):
-                    # Don't process if blacklisted.
-                    continue
-                categories, lookup_table, categories_set = \
-                    get_oriented_cat_values(categories, lookup_table,
-                                            categories_set, id, name)
-        else:
-            for id, name in reader:
-                categories, lookup_table, categories_set = \
-                    get_oriented_cat_values(categories, lookup_table,
-                                            categories_set, id, name)
-
-    return categories, lookup_table, categories_set
+    return pd.read_csv(fp)
 
 
 if __name__ == '__main__':

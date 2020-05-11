@@ -11,9 +11,7 @@ Created on:
 import os.path as osp
 import os
 from shutil import rmtree
-from conversion import OBBAnnotations, process_image_dir, \
-    generate_oriented_categories, generate_annotations, \
-    image_csv_to_dict, CocoLikeAnnotations, generate_categories
+from conversion import *
 import csv
 import argparse
 from sys import exit
@@ -29,7 +27,7 @@ def parse_argument():
     parser.add_argument('CLASSES', type=str,
                         help='path to the file containing the class names list')
     parser.add_argument('-o', '--oriented', action='store_true',
-                       help='output using OBB schema')
+                        help='output using OBB schema')
 
     return parser.parse_args()
 
@@ -124,7 +122,7 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
     # Figure out the classes
     print("Reading categories...")
     if obb:
-        categories, cat_lookup, cat_set = generate_oriented_categories(
+        categories = generate_oriented_categories(
             osp.join(dir_path, class_names_fp)
         )
     else:
@@ -135,18 +133,27 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
 
     # Process the annotations
     print("Generating annotations...")
-    annotations = generate_annotations(
-        pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
-        xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
-        category_lookup=cat_lookup,
-        img_lookup=img_lookup,
-        train_set=training_set,
-        val_set=val_set,
-        category_set=cat_set,
-        oriented=obb
-    )
+    if obb:
+        annotations = generate_oriented_annotations(
+            pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
+            xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
+            categories=categories,
+            img_lookup=img_lookup,
+            train_set=training_set,
+            val_set=val_set
+        )
+    else:
+        annotations = generate_annotations(
+            pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
+            xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
+            category_lookup=cat_lookup,
+            img_lookup=img_lookup,
+            train_set=training_set,
+            val_set=val_set,
+            oriented=obb
+        )
+        print("Done!")
     train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
-    print("Done!")
 
     if obb:
         ds = OBBAnnotations
@@ -159,11 +166,9 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
         val_desc = "Deepscores validation set in the COCO format"
         img_style = 'coco'
 
-
     # Once that's complete, generate the actual dataset objects.
     train_dataset = ds(train_desc)
     val_dataset = ds(val_desc)
-
 
     train_dataset.add_images(image_csv_to_dict(train_img_path, img_style,
                                                train_ann_lookup))

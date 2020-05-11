@@ -22,6 +22,7 @@ from math import floor, ceil
 from itertools import groupby
 from tqdm import tqdm
 from cv2 import minAreaRect, boxPoints
+import pandas as pd
 
 
 # Some objects are not processed by the mask generation code. To deal with
@@ -76,9 +77,122 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
     return bin_mask.astype('uint8'), np.count_nonzero(bin_mask)
 
 
+def generate_oriented_annotations(pix_annotations_dir: str,
+                                  xml_annotations_dir: str,
+                                  categories: pd.DataFrame,
+                                  img_lookup: dict, train_set: set,
+                                  val_set: set = None) -> tuple:
+    """Generates OBB annotations only.
+
+    Args:
+        pix_annotations_dir: Path to the pix_annotations directory,
+            i.e. where the segmented images are.
+        xml_annotations_dir: Path to the xml_annotations directory,
+            i.e. where the object annotations are.
+        categories: DataFrame containing the information in the class_names csv
+            file.
+        img_lookup: A lookup table to get the image_id of every named image.
+        train_set: A set that includes the image names of every image in the
+            training set. Used to separate which annotation list the
+            annotation should be appended to.
+        val_set: A set that includes the names of every image in the validation
+            set. If None is given, then it is assumed every file not in the
+            training set are part of the validation set.
+
+    Returns:
+        A tuple of annotation lists, the 0th element being the training ann
+        dict, the 1st being the validation ann dict, the 2nd being the a dict of
+        annotations with training image ids as the key, and the 3rd being a dict
+        of annotations with validation image ids as the key.
+    """
+    print("Processing annotations...")
+    train_ann_list = dict()
+    val_ann_list = dict()
+    train_ann_lookup = dict()
+    val_ann_lookup = dict()
+
+    # Change index of categories to use the xml name
+    categories.set_index('xml_name')
+
+    cat_set = set(categories['xml_name'].to_list())
+
+    counter = 1
+
+    file_list = listdir(xml_annotations_dir)
+
+    for file_name in tqdm(file_list):
+        img_name = splitext(file_name)[0]
+
+        img_in_train = img_name in train_set
+        if val_set is not None:
+            img_in_val = img_name in val_set
+        else:
+            img_in_val = not img_in_train
+
+        if not (img_in_val or img_in_train):
+            continue
+
+        xml_path = join(xml_annotations_dir, file_name)
+        segmentation_path = join(pix_annotations_dir, img_name + '_seg.png')
+        file_annotations = []
+        image_id = img_lookup[img_name]
+
+        seg_array = np.array(Image.open(segmentation_path))
+        # NOTE: seg_array.shape = (height, width)
+
+        # Generate tree from xml
+        tree = ET.parse(xml_path)
+        root = tree.getroot()
+        size = root.find('size')
+        # Get width and height to use as multipliers
+        w = float(size.find('width').text)
+        h = float(size.find('height').text)
+
+        for obj in root.iter('object'):
+            name = obj.find('name').text
+            if name in cat_set:
+                # Get information about this category
+                cat = categories.loc[name]
+                # Get the abs aligned bounding box of the specific annotation
+                aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
+
+                # Get the segmentation
+                extracted_seg = extract_area_inside_bbox(aligned_bbox,
+                                                         seg_array)
+
+                class_color = int(cat['id'])
+                bin_mask, area = generate_binary_mask(extracted_seg,
+                                                      class_color)
+
+                if area == 0:
+                    continue
+
+                oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
+                curr_ann = {
+                    'a_bbox': aligned_bbox,
+                    'o_bbox': oriented_bbox,
+                    'cat_id': cat['deepscores_category_id'],
+                    'area': area,
+                    'img_id': str(image_id),
+                    'comments': ""
+                }
+                if img_in_train:
+                    train_ann_list[str(counter)] = curr_ann
+                else:
+                    val_ann_list[str(counter)] = curr_ann
+                file_annotations.append(str(counter))
+                counter += 1
+        if img_in_train:
+            train_ann_lookup[image_id] = file_annotations
+        elif img_in_val:
+            val_ann_lookup[image_id] = file_annotations
+
+        return train_ann_list, val_ann_list, train_ann_lookup, val_ann_lookup
+
+
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
-                         category_lookup: dict, img_lookup: dict,
-                         train_set: set, category_set: set, val_set: set = None,
+                         img_lookup: dict, train_set: set,
+                         category_lookup: dict = None, val_set: set = None,
                          oriented: bool = False) -> tuple:
     """Generates COCO-like annotations.
 
@@ -96,7 +210,6 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         val_set: A set that includes the names of every image in the validation
             set. If None is given, then it is assumed every file not in the
             training set are part of the validation set.
-        category_set: A set that contains all category names.
         oriented: Whether or not to use the oriented bounding box schema.t
 
     Returns:
@@ -105,6 +218,8 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
         annotations per training image, and the 3rd being the list of
         annotations per validation image.
     """
+    if category_lookup is None:
+        assert not oriented, 'Category lookup dictionary is required.'
     print("Processing annotations...")
     train_annotation_list = {} if oriented else []
     test_annotation_list = {} if oriented else []
@@ -154,9 +269,13 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                     name += 'Offline'
             if name in RENAMED_MAPPINGS:
                 name = RENAMED_MAPPINGS[name]
-            if name in category_set:
+            if name in category_lookup:
                 # First get category ID
-                category_id = category_lookup[name]
+                if "change" in name:
+                    # NOTE: This branch is now deprecated.
+                    pass
+                else:
+                    category_id = category_lookup[name]
 
                 # Second, get aligned bbox
                 aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
@@ -168,13 +287,6 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
 
                 # Then turn it into a binary mask
                 class_color = int(category_id)
-
-                # SORRY THIS IS SO HACKY
-                # Reprocessing the original file just takes way too long
-                if class_color > 1000:       # Online/Offline offset
-                    class_color -= 1000
-                if name in OFF_BY_ONE:
-                    class_color -= 1
 
                 if name in NON_COLORED_NAMES:
                     bin_mask = np.ones_like(extracted_seg)

@@ -65,9 +65,9 @@ def process_image_dir(dir_path: str, work_dir: str, training_set: set,
         print('Done!')
         return train_fp, val_fp, lookup_table
 
-    train_file = open(train_fp, mode='w')
-    val_file = open(val_fp, mode='w')
-    img_lookup_file = open(lookup_fp, mode='w')
+    train_file = open(train_fp, mode='w', newline='')
+    val_file = open(val_fp, mode='w', newline='')
+    img_lookup_file = open(lookup_fp, mode='w', newline='')
 
     fields = ['license', 'file_name', 'coco_url', 'height', 'width',
               'date_captured', 'flickr_url', 'id']
