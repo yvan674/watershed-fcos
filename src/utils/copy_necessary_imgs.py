@@ -31,9 +31,11 @@ if __name__ == '__main__':
     args = parse_args()
 
     print('Loading annotations...')
-    with open(join(args.DIR, args.TRAIN)) as json_file:
+    train_ann_fp = join(args.DIR, args.TRAIN)
+    val_ann_fp = join(args.DIR, args.VAL)
+    with open(train_ann_fp) as json_file:
         train_json = json.load(json_file)
-    with open(join(args.DIR, args.VAL)) as json_file:
+    with open(val_ann_fp) as json_file:
         val_json = json.load(json_file)
 
     imgs_to_copy = []
@@ -72,3 +74,7 @@ if __name__ == '__main__':
     print("Copying segmentation...")
     for seg in tqdm(seg_to_copy):
         copyfile(seg, join(args.OUT, 'pix_annotations_png', split(seg)[1]))
+
+    print("Copying annotations...")
+    copyfile(train_ann_fp, join(args.OUT, args.TRAIN))
+    copyfile(val_ann_fp, join(args.OUT, args.VAL))
