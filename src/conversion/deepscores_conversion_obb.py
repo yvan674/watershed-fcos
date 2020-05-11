@@ -175,8 +175,13 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
     val_dataset.add_images(image_csv_to_dict(val_img_path, img_style,
                                              val_ann_lookup))
 
-    train_dataset.add_categories(categories)
-    val_dataset.add_categories(categories)
+    if obb:
+        # TODO add Muscima dataset annotations as well.
+        train_dataset.add_categories(categories, 'deepscores')
+        val_dataset.add_categories(categories, 'deepscores')
+    else:
+        train_dataset.add_categories(categories)
+        val_dataset.add_categories(categories)
 
     train_dataset.add_annotations(train_ann)
     val_dataset.add_annotations(val_ann)

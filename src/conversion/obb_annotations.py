@@ -12,6 +12,7 @@ Created on:
 """
 import json
 from datetime import datetime
+import pandas as pd
 
 
 class OBBAnnotations:
@@ -37,14 +38,29 @@ class OBBAnnotations:
                 'date_created': datetime.now().strftime('%Y-%m-%d'),
                 'url': url
             },
+            'annotation_sets': [],
             'categories': None,
             'images': None,
             'annotations': None
         }
 
-    def add_categories(self, categories: dict):
-        """Adds categories from the given dictionary into self."""
-        self.annotations['categories'] = categories
+    def add_categories(self, categories: pd.DataFrame, ann_set_name: str):
+        """Adds categories from the given DataFrame into self."""
+        if ann_set_name not in self.annotations['annotation_sets']:
+            self.annotations['annotation_sets'].append(ann_set_name)
+
+        categories = categories[['id', 'deepscores_category_id',
+                                 'deepscores_name', ]]
+        processed_cats = {}
+
+        for _, (color, cat_id, name) in categories.iterrows():
+            processed_cats[str(cat_id)] = {
+                'name': name,
+                'annotation_set': ann_set_name,
+                'color': color
+            }
+
+        self.annotations['categories'] = processed_cats
 
     def add_images(self, images: list):
         """Adds images from the given list into self."""

@@ -9,10 +9,6 @@ id,xml_name,deepscores_name,deepscores_category_id
 12,cClefTenor,clefCTenor,8
 13,fClef,clefF,9
 14,unpitchedPercussionClef1,clefUnpitchedPercussion,10
-15,gClefChange,clefG,6
-16,cClefAltoChange,clefCAlto,7
-17,cClefTenorChange,clefCTenor,8
-18,fClefChange,clefF,9
 19,clef8,clef8,11
 20,clef15,clef15,12
 21,timeSig0,timeSig0,13
