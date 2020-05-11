@@ -86,7 +86,6 @@ def process_image_dir(dir_path: str, work_dir: str, training_set: set,
                                         or img_name in val_set):
             continue
 
-
         img_file = Image.open(join(dir_path, image))
         width, height = img_file.size
         data = {

@@ -186,7 +186,7 @@ def generate_oriented_annotations(pix_annotations_dir: str,
         elif img_in_val:
             val_ann_lookup[image_id] = file_annotations
 
-        return train_ann_list, val_ann_list, train_ann_lookup, val_ann_lookup
+    return train_ann_list, val_ann_list, train_ann_lookup, val_ann_lookup
 
 
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
