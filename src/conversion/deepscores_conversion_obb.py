@@ -1,6 +1,8 @@
 """Deepscores Converstion to Oriented Bounding Box Annotations.
 
 Converts the deepscores dataset to the Oriented Bounding Box Annotations.
+pretty_time_delta() was taken from a gist by thatalextaylor:
+https://gist.github.com/thatalextaylor/7408395
 
 Author:
     Yvan Satyawan <y_satyawan@hotmail.com>
@@ -15,7 +17,24 @@ from conversion import *
 import csv
 import argparse
 from sys import exit
+from time import time
 from tqdm import tqdm
+
+
+def pretty_time_delta(seconds):
+    sign_string = '-' if seconds < 0 else ''
+    seconds = abs(int(seconds))
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if days > 0:
+        return '%s%dd%dh%dm%ds' % (sign_string, days, hours, minutes, seconds)
+    elif hours > 0:
+        return '%s%dh%dm%ds' % (sign_string, hours, minutes, seconds)
+    elif minutes > 0:
+        return '%s%dm%ds' % (sign_string, minutes, seconds)
+    else:
+        return '%s%ds' % (sign_string, seconds)
 
 
 def parse_argument():
@@ -189,6 +208,7 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
 
 if __name__ == '__main__':
     arguments = parse_argument()
+    start_time = time()
 
     train, val = do_conversion(arguments.DIR, arguments.CLASSES,
                                arguments.oriented)
@@ -202,3 +222,4 @@ if __name__ == '__main__':
     val.output_json(osp.join(arguments.DIR, name_prefix + '_val.json'))
 
     print('\nConversion completed!')
+    print(f"Total time: {pretty_time_delta(time() - start_time)}")

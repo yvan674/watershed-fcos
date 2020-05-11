@@ -82,40 +82,41 @@ def process_image_dir(dir_path: str, work_dir: str, training_set: set,
     for image in tqdm(dir_list):
         img_name = splitext(image)[0]
 
-        if val_set is not None and not (img_name in training_set
-                                        or img_name in val_set):
-            continue
+        if val_set is None or (img_name in training_set or img_name in val_set):
+            # Only process image if it's necessary
+            img_file = Image.open(join(dir_path, image))
+            width, height = img_file.size
+            data = {
+                'license': 1,
+                'file_name': image,
+                'coco_url': 'not_a_coco_image',
+                'height': height,
+                'width': width,
+                'date_captured': '1970-01-01 00:00:00',
+                'flickr_url': 'not_on_flickr',
+                'id': str(counter)
+            }
+            lookup_table[img_name] = counter
 
-        img_file = Image.open(join(dir_path, image))
-        width, height = img_file.size
-        data = {
-            'license': 1,
-            'file_name': image,
-            'coco_url': 'not_a_coco_image',
-            'height': height,
-            'width': width,
-            'date_captured': '1970-01-01 00:00:00',
-            'flickr_url': 'not_on_flickr',
-            'id': str(counter)
-        }
-        lookup_table[img_name] = counter
+            # Append to the appropriate list
+            if img_name in training_set:
+                train_list.append(data)
+            else:
+                if val_set is None:
+                    val_list.append(data)
+                elif img_name in val_set:
+                    val_list.append(data)
+            counter += 1
 
-        # Append to the appropriate list
-        if img_name in training_set:
-            train_list.append(data)
-        else:
-            if val_set is None:
-                val_list.append(data)
-            elif img_name in val_set:
-                val_list.append(data)
-
-        if counter % 500 == 0 or counter == len(dir_list):
+        if counter % 500 == 0:
             train_writer.writerows(train_list)
             val_writer.writerows(val_list)
             train_list = []
             val_list = []
 
-        counter += 1
+    # Make sure any left over items are written to the CSV file
+    train_writer.writerows(train_list)
+    val_writer.writerows(val_list)
 
     # Write out lookup file
     print("Writing lookup file...")
