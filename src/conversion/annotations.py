@@ -167,10 +167,14 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                     continue
 
                 oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
+
+                # Convert aligned_bbox to the right values, i.e. [x0,y0,x1,y1]
+                aligned_bbox[2] += aligned_bbox[0]
+                aligned_bbox[3] += aligned_bbox[1]
                 curr_ann = {
                     'a_bbox': aligned_bbox,
                     'o_bbox': oriented_bbox.tolist(),
-                    'cat_id': int(cat['deepscores_category_id']),
+                    'cat_id': [str(cat['deepscores_category_id'])],
                     'area': area,
                     'img_id': str(image_id),
                     'comments': ""
