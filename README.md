@@ -6,10 +6,6 @@ Amongst the tools provided are ground truth visualizers for the COCO dataset, a 
 
 ## Deepscores Conversion Notes
 
-- Class colors are not changed for online or offline.
-    - Only the names are changed.
-- Small and not small class_colors are not changed.
-    - Only the names are changed.
 - Clef symbols and clef changes are converted to just clef symbols by this package.
 
 ## Notes
