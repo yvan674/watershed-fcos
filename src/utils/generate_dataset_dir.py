@@ -1,4 +1,4 @@
-"""Copy necessary images.
+"""Generate Dataset Directory.
 
 When the dataset files are generated, it only generates an annotation file and
 do nothing to the original images. This script copies files that are in
@@ -64,16 +64,16 @@ if __name__ == '__main__':
 
     if not exists(args.OUT):
         mkdir(args.OUT)
-        mkdir(join(args.OUT, 'images_png'))
-        mkdir(join(args.OUT, 'pix_annotations_png'))
+        mkdir(join(args.OUT, 'images'))
+        mkdir(join(args.OUT, 'segmentation'))
 
     print("Copying images...")
     for img in tqdm(imgs_to_copy):
-        copyfile(img, join(args.OUT, 'images_png', split(img)[1]))
+        copyfile(img, join(args.OUT, 'images', split(img)[1]))
 
     print("Copying segmentation...")
     for seg in tqdm(seg_to_copy):
-        copyfile(seg, join(args.OUT, 'pix_annotations_png', split(seg)[1]))
+        copyfile(seg, join(args.OUT, 'segmentation', split(seg)[1]))
 
     print("Copying annotations...")
     copyfile(train_ann_fp, join(args.OUT, args.TRAIN))
