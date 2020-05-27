@@ -193,9 +193,8 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
                                              val_ann_lookup))
 
     if obb:
-        # TODO add Muscima dataset annotations as well.
-        train_dataset.add_categories(categories, 'deepscores')
-        val_dataset.add_categories(categories, 'deepscores')
+        train_dataset.add_categories(categories)
+        val_dataset.add_categories(categories)
     else:
         train_dataset.add_categories(categories)
         val_dataset.add_categories(categories)

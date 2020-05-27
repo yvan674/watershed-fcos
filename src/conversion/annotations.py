@@ -174,7 +174,8 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                 curr_ann = {
                     'a_bbox': aligned_bbox,
                     'o_bbox': oriented_bbox.tolist(),
-                    'cat_id': [str(cat['deepscores_category_id'])],
+                    'cat_id': [str(cat['deepscores_category_id']),
+                               str(cat['muscima_id'])],
                     'area': area,
                     'img_id': str(image_id),
                     'comments': ""

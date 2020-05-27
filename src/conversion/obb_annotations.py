@@ -44,19 +44,26 @@ class OBBAnnotations:
             'annotations': None
         }
 
-    def add_categories(self, categories: pd.DataFrame, ann_set_name: str):
+    def add_categories(self, categories: pd.DataFrame):
         """Adds categories from the given DataFrame into self."""
         if ann_set_name not in self.annotations['annotation_sets']:
             self.annotations['annotation_sets'].append(ann_set_name)
 
         categories = categories[['id', 'deepscores_category_id',
-                                 'deepscores_name', ]]
+                                 'deepscores_name', 'muscima_name',
+                                 'muscima_id']]
         processed_cats = {}
 
-        for _, (color, cat_id, name) in categories.iterrows():
-            processed_cats[str(cat_id)] = {
-                'name': name,
-                'annotation_set': ann_set_name,
+        for _, row in categories.iterrows():
+            color, ds_id, ds_name, m_name, m_id = row
+            processed_cats[str(ds_id)] = {
+                'name': ds_name,
+                'annotation_set': 'deepscores',
+                'color': color
+            }
+            processed_cats[str(m_id)] = {
+                'name': m_name,
+                'annotation_set': 'muscima++',
                 'color': color
             }
 
