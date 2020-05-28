@@ -60,9 +60,10 @@ def main(src_dir: str, dest_dir: str, n: int):
     src_dir = Path(src_dir)
     dest_dir = Path(dest_dir)
     if dest_dir.exists():
-        if ask('Destination directory already exists. Overwrite it?'):
-            rmdir_with_contents(dest_dir)
-            dest_dir.mkdir()
+        if len(listdir(str(dest_dir))) > 0:
+            if ask('Destination directory is not empty. Overwrite it?'):
+                rmdir_with_contents(dest_dir)
+                dest_dir.mkdir()
 
     files_to_copy = randomly_select_files(src_dir, n)
     for file in tqdm(files_to_copy):
