@@ -45,8 +45,6 @@ def parse_argument():
                         help='path to the directory containing the dataset')
     parser.add_argument('CLASSES', type=str,
                         help='path to the file containing the class names list')
-    parser.add_argument('-o', '--oriented', action='store_true',
-                        help='output using OBB schema')
 
     return parser.parse_args()
 
@@ -63,7 +61,7 @@ def ask(question: str = 'Continue?') -> bool:
             response = input('Please type [y] or [n] ')
 
 
-def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
+def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     """Does the actual conversion.
 
     Returns:
@@ -142,46 +140,26 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
     print("Reading categories...")
     if not osp.isabs(class_names_fp):
         class_names_fp = osp.join(dir_path, class_names_fp)
-    if obb:
-        categories = generate_oriented_categories(class_names_fp)
-    else:
-        categories, cat_lookup, cat_set = generate_categories(class_names_fp)
+    categories = generate_oriented_categories(class_names_fp)
     print("Done!")
 
     # Process the annotations
     print("Generating annotations...")
-    if obb:
-        annotations = generate_oriented_annotations(
-            pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
-            xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
-            categories=categories,
-            img_lookup=img_lookup,
-            train_set=training_set,
-            val_set=val_set
-        )
-    else:
-        annotations = generate_annotations(
-            pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
-            xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
-            category_lookup=cat_lookup,
-            img_lookup=img_lookup,
-            train_set=training_set,
-            val_set=val_set,
-            oriented=obb
-        )
-        print("Done!")
+    annotations = generate_oriented_annotations(
+        pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
+        xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
+        categories=categories,
+        img_lookup=img_lookup,
+        train_set=training_set,
+        val_set=val_set
+    )
+    print("Done!")
     train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
 
-    if obb:
-        ds = OBBAnnotations
-        train_desc = "Deepscores training set in the OBB format"
-        val_desc = "Deepscores validation set in the OBB format"
-        img_style = 'obb'
-    else:
-        ds = CocoLikeAnnotations
-        train_desc = "Deepscores training set in the COCO format"
-        val_desc = "Deepscores validation set in the COCO format"
-        img_style = 'coco'
+    ds = OBBAnnotations
+    train_desc = "Deepscores training set in the OBB format"
+    val_desc = "Deepscores validation set in the OBB format"
+    img_style = 'obb'
 
     # Once that's complete, generate the actual dataset objects.
     train_dataset = ds(train_desc)
@@ -192,12 +170,8 @@ def do_conversion(dir_path: str, class_names_fp: str, obb: bool) -> tuple:
     val_dataset.add_images(image_csv_to_dict(val_img_path, img_style,
                                              val_ann_lookup))
 
-    if obb:
-        train_dataset.add_categories(categories)
-        val_dataset.add_categories(categories)
-    else:
-        train_dataset.add_categories(categories)
-        val_dataset.add_categories(categories)
+    train_dataset.add_categories(categories)
+    val_dataset.add_categories(categories)
 
     train_dataset.add_annotations(train_ann)
     val_dataset.add_annotations(val_ann)
@@ -209,10 +183,9 @@ if __name__ == '__main__':
     arguments = parse_argument()
     start_time = time()
 
-    train, val = do_conversion(arguments.DIR, arguments.CLASSES,
-                               arguments.oriented)
+    train, val = do_conversion(arguments.DIR, arguments.CLASSES)
 
-    name_prefix = 'deepscores_oriented' if arguments.oriented else 'deepscores'
+    name_prefix = 'deepscores'
 
     print('\nWriting training annotation file to disk...')
     train.output_json(osp.join(arguments.DIR, name_prefix + '_train.json'))

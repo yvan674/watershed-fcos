@@ -34,7 +34,6 @@ def parse_args():
     return p.parse_args()
 
 
-
 def main(dataset_fp, ann_fp, out_fp):
     """Main function.
 
