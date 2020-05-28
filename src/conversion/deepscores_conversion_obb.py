@@ -19,6 +19,7 @@ import argparse
 from sys import exit
 from time import time
 from tqdm import tqdm
+from utils.ask import ask
 
 
 def pretty_time_delta(seconds):
@@ -47,18 +48,6 @@ def parse_argument():
                         help='path to the file containing the class names list')
 
     return parser.parse_args()
-
-
-def ask(question: str = 'Continue?') -> bool:
-    """Asks the user to continue or not."""
-    response = input(f'{question}[y/n] ')
-    while True:
-        if response == 'n':
-            return False
-        elif response == 'y':
-            return True
-        else:
-            response = input('Please type [y] or [n] ')
 
 
 def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
