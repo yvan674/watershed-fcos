@@ -46,9 +46,6 @@ class OBBAnnotations:
 
     def add_categories(self, categories: pd.DataFrame):
         """Adds categories from the given DataFrame into self."""
-        if ann_set_name not in self.annotations['annotation_sets']:
-            self.annotations['annotation_sets'].append(ann_set_name)
-
         categories = categories[['id', 'deepscores_category_id',
                                  'deepscores_name', 'muscima_name',
                                  'muscima_id']]
