@@ -64,6 +64,8 @@ def main(src_dir: str, dest_dir: str, n: int):
             if ask('Destination directory is not empty. Overwrite it?'):
                 rmdir_with_contents(dest_dir)
                 dest_dir.mkdir()
+            else:
+                return
 
     files_to_copy = randomly_select_files(src_dir, n)
     for file in tqdm(files_to_copy):
