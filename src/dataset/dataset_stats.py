@@ -12,6 +12,7 @@ Created on:
 from argparse import ArgumentParser
 from os.path import join, exists
 from os import mkdir
+from time import time
 import json
 import numpy as np
 from tqdm import tqdm
@@ -119,8 +120,11 @@ def main(ann_file, out_dir, whitespace_only, num_workers=None):
         mkdir(out_dir)
 
     print("Loading annotation file...")
+    start_time = time()
     with open(ann_file) as fp:
         file = json.load(fp)
+
+    print(f"Done! t={time() - start_time:.2f}s")
 
     imgs = file['images']
     anns = pd.DataFrame.from_dict(file['annotations'], orient='index')
@@ -140,7 +144,7 @@ def main(ann_file, out_dir, whitespace_only, num_workers=None):
 
     total_anns = 0
 
-    for img in tqdm(imgs[:20], unit='imgs'):
+    for img in tqdm(imgs, unit='imgs'):
         ann_ids = [str(i) for i in img['ann_ids']]
         img_anns = anns.loc[ann_ids]
         processed = img_anns.apply(process_ann_row, axis=1)
