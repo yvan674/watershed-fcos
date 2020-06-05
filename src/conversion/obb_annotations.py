@@ -13,6 +13,7 @@ Created on:
 import json
 from datetime import datetime
 import pandas as pd
+from math import isnan
 
 
 class OBBAnnotations:
@@ -53,16 +54,17 @@ class OBBAnnotations:
 
         for _, row in categories.iterrows():
             color, ds_id, ds_name, m_name, m_id = row
-            processed_cats[str(ds_id)] = {
+            processed_cats[str(int(ds_id))] = {
                 'name': ds_name,
                 'annotation_set': 'deepscores',
                 'color': color
             }
-            processed_cats[str(m_id)] = {
-                'name': m_name,
-                'annotation_set': 'muscima++',
-                'color': color
-            }
+            if not isnan(m_id):
+                processed_cats[str(int(m_id))] = {
+                    'name': m_name,
+                    'annotation_set': 'muscima++',
+                    'color': color
+                }
         self.annotations['annotation_sets'] = [
             'deepscores', 'muscima++'
         ]
