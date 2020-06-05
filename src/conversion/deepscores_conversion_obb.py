@@ -145,14 +145,13 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     print("Done!")
     train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
 
-    ds = OBBAnnotations
     train_desc = "Deepscores training set in the OBB format"
     val_desc = "Deepscores validation set in the OBB format"
     img_style = 'obb'
 
     # Once that's complete, generate the actual dataset objects.
-    train_dataset = ds(train_desc)
-    val_dataset = ds(val_desc)
+    train_dataset = OBBAnnotations(train_desc, version='2.0')
+    val_dataset = OBBAnnotations(val_desc, version='2.0')
 
     train_dataset.add_images(image_csv_to_dict(train_img_path, img_style,
                                                train_ann_lookup))

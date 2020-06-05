@@ -32,7 +32,7 @@ class OBBAnnotations:
                 'description': description,
                 'version': version,
                 'year': int(datetime.now().strftime('%Y')),
-                'contributor': 'Lukas Tuggener, Ismail Elezi,  Yvan Satyawan, '
+                'contributor': 'Lukas Tuggener, Ismail Elezi, Yvan Satyawan, '
                                'Jürgen Schmidhuber, Marcello Pelillo, '
                                'Thilo Stadelmann',
                 'date_created': datetime.now().strftime('%Y-%m-%d'),
@@ -63,6 +63,9 @@ class OBBAnnotations:
                 'annotation_set': 'muscima++',
                 'color': color
             }
+        self.annotations['annotation_sets'] = [
+            'deepscores', 'muscima++'
+        ]
 
         self.annotations['categories'] = processed_cats
 
