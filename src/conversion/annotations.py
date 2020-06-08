@@ -18,7 +18,7 @@ from os import listdir
 from os.path import join, splitext
 import numpy as np
 from PIL import Image
-from math import floor, ceil
+from math import floor, ceil, isnan
 from itertools import groupby
 from tqdm import tqdm
 from cv2 import minAreaRect, boxPoints
@@ -152,6 +152,12 @@ def generate_oriented_annotations(pix_annotations_dir: str,
             if name in cat_set:
                 # Get information about this category
                 cat = categories.loc[name]
+                ds_cat = str(cat['deepscores_category_id'])
+                if isnan(cat['muscima_id']):
+                    muscima_cat = None
+                else:
+                    muscima_cat = str(int(cat['muscima_id']))
+
                 # Get the abs aligned bounding box of the specific annotation
                 aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
 
@@ -174,8 +180,8 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                 curr_ann = {
                     'a_bbox': aligned_bbox,
                     'o_bbox': oriented_bbox.tolist(),
-                    'cat_id': [str(cat['deepscores_category_id']),
-                               str(cat['muscima_id'])],
+                    'cat_id': [ds_cat,
+                               muscima_cat],
                     'area': area,
                     'img_id': str(image_id),
                     'comments': ""

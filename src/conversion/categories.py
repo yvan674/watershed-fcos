@@ -120,12 +120,12 @@ def generate_oriented_categories(fp: str) -> pd.DataFrame:
     cats['muscima_id'] = cats['muscima_id'].map(
         lambda x: int(x) if not isnan(x) else None
     )
-    return pd.read_csv(fp)
+    return cats
 
 
 if __name__ == '__main__':
-    categories, lookup_table = generate_categories(
-        '/Users/Yvan/Offline Files/deep_scores_dense/class_names.csv/'
+    categories = generate_oriented_categories(
+        '../dataset/extended_class_names.csv'
     )
 
-    print(json.dumps(categories, indent=4, separators=(',', ': ')))
+    print(categories)
