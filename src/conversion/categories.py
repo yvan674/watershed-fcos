@@ -118,7 +118,7 @@ def generate_oriented_categories(fp: str) -> pd.DataFrame:
         lambda x: int(x)
     )
     cats['muscima_id'] = cats['muscima_id'].map(
-        lambda x: int(x) if not isnan(x) else x
+        lambda x: int(x) if not isnan(x) else None
     )
     return pd.read_csv(fp)
 
