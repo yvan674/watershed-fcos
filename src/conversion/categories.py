@@ -113,7 +113,7 @@ def generate_oriented_categories(fp: str) -> pd.DataFrame:
         DataFrame of the categories csv file.
     """
     cats = pd.read_csv(fp)
-    cats['deepscores_category_ids'] = cats['deepscores_category_ids'].map(
+    cats['deepscores_category_id'] = cats['deepscores_category_id'].map(
         lambda x: int(x)
     )
     cats['muscima_id'] = cats['muscima_id'].map(lambda x: int(x))
