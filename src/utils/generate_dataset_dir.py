@@ -1,7 +1,7 @@
 """Generate Dataset Directory.
 
 When the dataset files are generated, it only generates an annotation file and
-do nothing to the original images. This script copies files that are in
+does nothing to the original images. This script copies files that are in
 either the training or validation annotation files to a new dir.
 
 Author:
