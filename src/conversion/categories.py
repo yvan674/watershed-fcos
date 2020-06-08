@@ -105,15 +105,18 @@ def generate_categories(file_path: str) -> tuple:
 def generate_oriented_categories(fp: str) -> pd.DataFrame:
     """Generates categories according to the OBB schema.
 
-    This is its own function instead of a simple function call due to historical
-    reasons. Also, this makes it easier if in the future some sort of
-    pre-processing is necessary from the raw CSV file.
+    Does data validation and converts category ids to ints.
     Args:
         fp: path to the class_names.csv file
 
     Returns:
         DataFrame of the categories csv file.
     """
+    cats = pd.read_csv(fp)
+    cats['deepscores_category_ids'] = cats['deepscores_category_ids'].map(
+        lambda x: int(x)
+    )
+    cats['muscima_id'] = cats['muscima_id'].map(lambda x: int(x))
     return pd.read_csv(fp)
 
 
