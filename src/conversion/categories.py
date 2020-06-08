@@ -14,6 +14,7 @@ import csv
 import pandas as pd
 from re import finditer
 import json
+from math import isnan
 
 
 def camel_case_split(identifier):
@@ -116,7 +117,9 @@ def generate_oriented_categories(fp: str) -> pd.DataFrame:
     cats['deepscores_category_id'] = cats['deepscores_category_id'].map(
         lambda x: int(x)
     )
-    cats['muscima_id'] = cats['muscima_id'].map(lambda x: int(x))
+    cats['muscima_id'] = cats['muscima_id'].map(
+        lambda x: int(x) if not isnan(x) else x
+    )
     return pd.read_csv(fp)
 
 
