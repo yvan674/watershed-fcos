@@ -15,18 +15,20 @@ from os import mkdir
 from time import time
 import json
 import numpy as np
-from tqdm import tqdm
 import pandas as pd
 from pandarallel import pandarallel
 from shapely.geometry import Polygon
+from conversion.deepscores_conversion_obb import pretty_time_delta
 
 
 def parse_args():
     """Parses arguments."""
     p = ArgumentParser(description='calculates statistics for a coco-style '
                                    'dataset')
-    p.add_argument('ANN', type=str,
-                   help='paths of the annotation file to process')
+    p.add_argument('TRAIN', type=str,
+                   help='path of the training annotation file to process')
+    p.add_argument('VAL', type=str,
+                   help='path of the validation annotation file to process')
     p.add_argument('OUT', type=str,
                    help='path of the dir to write the csv file out to')
     p.add_argument('-x', action='store_true',
@@ -42,41 +44,49 @@ def process_ann_row(row):
     a_bbox = row['a_bbox']
     xs = np.array(o_bbox[::2])
     ys = np.array(o_bbox[1::2])
-    o_area = 0.5 * np.abs(np.dot(xs, np.roll(ys, 1))
-                          - np.dot(ys, np.roll(xs, 1)))
-    a_area = a_bbox[2] * a_bbox[3]
+    o_area = float(0.5 * np.abs(np.dot(xs, np.roll(ys, 1))
+                                - np.dot(ys, np.roll(xs, 1))))
 
-    result = [a_bbox[0], a_bbox[1], a_bbox[2], a_bbox[3],
-              a_area,
-              xs, ys, o_area,
-              row['area'], row['cat_id']]
-    indices = ['a_bbox0', 'a_bbox1', 'a_bbox2', 'a_bbox3', 'a_area',
-               'o_bboxx', 'o_bboxy', 'o_area', 'area', 'cat_id']
-
-    return pd.Series(result, index=indices)
-
-
-def calc_whitespace(x):
-    if x['a_area'] == 0:
+    a_area = float(abs(a_bbox[0] - a_bbox[2]) * abs(a_bbox[1] - a_bbox[3]))
+    if row['area'] < 0:
         a_ws = 0.
-    else:
-        a_ws = 1 - (x['area'] / x['a_area'])
-
-    if x['o_area'] == 0:
         o_ws = 0.
     else:
-        o_ws = 1 - (x['area'] / x['o_area'])
+        if a_area > 0.:
+            a_ws = 1 - max(0., (float(row['area'] / a_area)))
 
-    return pd.Series([a_ws, o_ws], index=['a_ws', 'o_ws'])
+        else:
+            a_ws = 0.
+        if o_area > 0.:
+            o_ws = max(0., 1 - (float(row['area'] / o_area)))
+        else:
+            o_ws = 0.
+
+    return pd.Series({'aligned_whitespace': float(a_ws),
+                      'oriented_whitespace': float(o_ws),
+                      'area': row['area'],
+                      'a_bbox0': float(a_bbox[0]),
+                      'a_bbox1': float(a_bbox[1]),
+                      'a_bbox2': float(a_bbox[2]),
+                      'a_bbox3': float(a_bbox[3]),
+                      'o_bbox_x0': float(xs[0]),
+                      'o_bbox_x1': float(xs[1]),
+                      'o_bbox_x2': float(xs[2]),
+                      'o_bbox_x3': float(xs[3]),
+                      'o_bbox_y0': float(ys[0]),
+                      'o_bbox_y1': float(ys[1]),
+                      'o_bbox_y2': float(ys[2]),
+                      'o_bbox_y3': float(ys[3]),
+                      'cat_id': str(row['cat_id'][0]),
+                      'img_id': row['img_id']})
 
 
-def calc_overlaps(row, index, a_bbox0v, a_bbox1v, a_bbox2v, a_bbox3v,
+def calc_single_overlap(row, index, a_bbox0v, a_bbox1v, a_bbox2v, a_bbox3v,
                   o_bboxxv, o_bboxyv):
-    indices = ['a_ol', 'o_ol']
 
     if row.name == index:
         # Don't calc against itself.
-        return pd.Series([False, False], index=indices)
+        return pd.Series({'aligned': False, 'oriented': False})
 
     # a_ol stands for aligned_overlap
     a_ol = abs(row['a_bbox0'] - a_bbox0v) * 2 < (row['a_bbox2'] + a_bbox2v)
@@ -95,121 +105,119 @@ def calc_overlaps(row, index, a_bbox0v, a_bbox1v, a_bbox2v, a_bbox3v,
     else:
         o_ol = False
 
-    results = [a_ol, o_ol]
-
-    return pd.Series(results, index=indices)
+    return pd.Series({'aligned': a_ol, 'overlap': o_ol})
 
 
-def main(ann_file, out_dir, whitespace_only, num_workers=None):
+def main(train_file, val_file, out_dir, whitespace_only, num_workers=None):
     """Main loop.
 
     Calculates whitespace in each bbox and overlaps
 
-    :param str ann_file: Path to the annotation file to get statistics for.
+    :param str train_file: Path to the training annotation file.
+    :param str val_file: Path to the validation annotation file.
     :param str out_dir: Where to output the results to.
     :param bool whitespace_only: Only calculate whitespace results.
     :param int num_workers: Number of workers to initialize for pandarallel
     """
     if not whitespace_only:
-        if num_workers is None:
-            pandarallel.initialize()
-        else:
-            pandarallel.initialize(nb_workers=num_workers)
+        raise NotImplementedError('Was too time consuming to implement.')
+    if num_workers is None:
+        pandarallel.initialize()
+    else:
+        pandarallel.initialize(nb_workers=num_workers, progress_bar=False)
 
     if not exists(out_dir):
         mkdir(out_dir)
 
-    print("Loading annotation file...")
     start_time = time()
-    with open(ann_file) as fp:
-        file = json.load(fp)
+    print("Loading training annotation file...")
+    with open(train_file) as fp:
+        train_file = json.load(fp)
+
+    anns = pd.DataFrame.from_dict(train_file['annotations'], orient='index')
+    cats = train_file['categories']
+
+    print("Loading validation annotation file...")
+    with open(val_file) as fp:
+        val_file = json.load(fp)
+    val_anns = pd.DataFrame.from_dict(val_file['annotations'], orient='index')
+    anns = pd.concat([anns, val_anns])
+    del val_anns
+    # ####################### DEBUG #######################
+    # print("Loading validation annotation file...")
+    # with open(val_file) as fp:
+    #     val_file = json.load(fp)
+    # anns = pd.DataFrame.from_dict(val_file['annotations'], orient='index')
+    # anns = anns.iloc[:500]
+    # cats = val_file['categories']
+    # # ####################### DEBUG #######################
+
+    # Do cleanup to reduce memory footprint
+    del train_file
+    del val_file
+
+    # Prune to only DeepScores classes
+    cats = {k: v
+            for k, v in cats.items()
+            if v['annotation_set'] == 'deepscores'}
 
     print(f"Done! t={time() - start_time:.2f}s")
 
-    imgs = file['images']
-    anns = pd.DataFrame.from_dict(file['annotations'], orient='index')
-    cats = file['categories']
+    print("Processing annotations...")
+    start_time = time()
+    anns = anns.parallel_apply(process_ann_row, axis=1)
+    anns = anns.loc[anns['area'] > 0]  # Keep only annotations with area > 0
 
-    # Aligned statistics will have the prefix a_
-    # OBB statistics will have the prefix o_
-    # Whitespace stats will have the suffix _ws
-    # Overlap stats will have the suffix _ol
-    a_ws, o_ws, a_ol, o_ol, cat_counts = {}, {}, {}, {}, {}
-    for k in cats.keys():
-        a_ws[k] = 0.
-        o_ws[k] = 0.
-        a_ol[k] = 0.
-        o_ol[k] = 0.
-        cat_counts[k] = 0
+    # if not whitespace_only:
+    #     overlaps = anns.parallel_apply(calc_overlaps, axis=1, args=anns)
+    print(f"Done! t={pretty_time_delta(time() - start_time)}")
 
-    total_anns = 0
+    print('Doing post processing...')
+    whitespace = anns[['aligned_whitespace', 'oriented_whitespace', 'cat_id']]
+    whitespace = whitespace.groupby('cat_id', sort=True)
+    cat_counts = whitespace.size()
+    whitespace = whitespace.sum()
 
-    for img in tqdm(imgs, unit='imgs'):
-        ann_ids = [str(i) for i in img['ann_ids']]
-        img_anns = anns.loc[ann_ids]
-        processed = img_anns.apply(process_ann_row, axis=1)
-        processed = processed.loc[processed['area'] > 0]
-        total_anns += len(processed)
+    mean_whitespace = whitespace.mean()
+    mean_whitespace /= cat_counts.sum()
+    whitespace['aligned_whitespace'] /= cat_counts
+    whitespace['oriented_whitespace'] /= cat_counts
 
-        # Now we have a new dataframe with all the info we need.
-        for k in cats.keys():
-            this_cat = processed.loc[processed['cat_id'] == k]
-            if len(this_cat) == 0:
-                continue
-            # Process whitespace first
-            ws = this_cat.apply(calc_whitespace, axis=1)
-            ws = ws.apply(np.sum)
-            ws = ws.apply(np.clip, args=(0, None))
-            a_ws[k] += ws['a_ws']
-            o_ws[k] += ws['o_ws']
-            cat_counts[k] += len(this_cat)
 
-        # Then process overlaps
-        if not whitespace_only:
-            for ann in processed.itertuples():
-                overlaps = processed.parallel_apply(
-                    calc_overlaps,
-                    axis=1,
-                    args=(ann.Index, ann.a_bbox0, ann.a_bbox1, ann.a_bbox2,
-                          ann.a_bbox3, ann.o_bboxx, ann.o_bboxy)
-                )
-                overlaps = overlaps.apply(np.sum)
-                c_id = str(ann.cat_id)
-                a_ol[c_id] += overlaps['a_ol']
-                o_ol[c_id] += overlaps['o_ol']
+    # if not whitespace_only:
+    #     mean_overlap = overlap_df.mean()
+    #     overlap_df['aligned'] = overlap_df['aligned'].div(cat_counts)
+    #     overlap_df['oriented'] = overlap_df['oriented'].div(cat_counts)
 
-    print('Doing final post_processing...')
+    # Prepare for csv file. Done manually because I'm too lazy to verify
+    # which join type I should use and how to properly rename columns tbh and
+    # this was written before moving to pandas as the data structure
+    header = 'cat_id,aligned_whitespace,oriented_whitespace{}\n'.format(
+        ',aligned_overlap,oriented_overlap' if not whitespace_only else ''
+    )
+    lines = [header]
 
-    mean_a_ws = 0
-    mean_a_ol = 0
-    mean_o_ws = 0
-    mean_o_ol = 0
 
-    # Prepare for csv file
-    lines = ['cat_id,aligned_whitespace,oriented_whitespace,aligned_overlap,'
-             'oriented_overlap\n']
-    for k in cats.keys():
-        if cat_counts[k] > 0:
-            mean_a_ws += a_ws[k]
-            mean_a_ol += a_ol[k]
-            mean_o_ws += o_ws[k]
-            mean_o_ol += o_ol[k]
+    for cat_id, row in whitespace.iterrows():
+        cat_name = cats[str(cat_id)]['name']
+        data_line = f'{cat_name},' \
+                    f'{row["aligned_whitespace"]},' \
+                    f'{row["oriented_whitespace"]}'
 
-            a_ws[k] /= cat_counts[k]
-            o_ws[k] /= cat_counts[k]
-            a_ol[k] /= cat_counts[k]
-            o_ol[k] /= cat_counts[k]
-            cat_name = cats[k]
+        # if not whitespace_only:
+        #     cat_overlap = overlap_df.loc[k]
+        #     data_line += f',{cat_overlap["aligned"]}' \
+        #                  f',{cat_overlap["oriented"]}'
 
-            lines.append(f'{cat_name},{a_ws[k]},{o_ws[k]},{a_ol[k]},'
-                         f'{o_ol[k]}\n')
+        lines.append(data_line + "\n")
 
-    mean_a_ws /= total_anns
-    mean_a_ol /= total_anns
-    mean_o_ws /= total_anns
-    mean_o_ol /= total_anns
+    data_line = f'mean,{mean_whitespace["aligned_whitespace"]},' \
+                f'{mean_whitespace["oriented_whitespace"]}'
 
-    lines.append(f'mean,{mean_a_ws},{mean_o_ws},{mean_a_ol},{mean_o_ol}\n')
+    # if not whitespace_only:
+    #     data_line += f',{mean_overlap["aligned"]},{mean_overlap["oriented"]}'
+
+    lines.append(data_line + '\n')
 
     print('Writing out file...')
     with open(join(out_dir, 'results.csv'), mode='w') as fp:
@@ -220,4 +228,4 @@ def main(ann_file, out_dir, whitespace_only, num_workers=None):
 
 if __name__ == '__main__':
     args = parse_args()
-    main(args.ANN, args.OUT, args.x, args.n)
+    main(args.TRAIN, args.VAL, args.OUT, args.x, args.n)
