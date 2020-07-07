@@ -1,6 +1,6 @@
 id,xml_name,deepscores_name,deepscores_category_id,muscima_name,muscima_id
 1,brace,brace,1,brace,137
-2,legerLine,legerLine,2,legerLine,138
+2,legerLine,ledgerLine,2,legerLine,138
 7,repeatDot,repeatDot,3,repeatDot,139
 8,segno,segno,4,segno,140
 9,coda,coda,5,coda,141

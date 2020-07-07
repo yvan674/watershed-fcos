@@ -66,6 +66,7 @@ def main(dataset_fp, ann_fp, out_fp):
             raise ValueError('User responded with something unexpected.')
 
     # Load the annotation file first so we know which classes to make a dir for.
+    print("Loading annotations...")
     if not isabs(ann_fp):
         ann_fp = join(dataset_fp, ann_fp)
     with open(ann_fp) as ann_file:
@@ -82,27 +83,27 @@ def main(dataset_fp, ann_fp, out_fp):
             for _, v in categories[ann_set].items():
                 makedirs(join(out_fp, ann_set, v))
 
+    prog_bar = tqdm(total=len(anns['annotations']), unit='anns')
+
     # Now go through each image to reduce the number of file ops needed.
-    counter = 0
-    for img_ann in tqdm(anns['images'], unit='imgs'):
+    for img_ann in anns['images']:
         img_fp = img_ann['filename']
         img_objects = img_ann['ann_ids']
         img = Image.open(join(dataset_fp, 'images', img_fp))
         for ann_id in img_objects:
             crop_box = anns['annotations'][ann_id]['a_bbox']
-            crop_box[2] += crop_box[0]
-            crop_box[3] += crop_box[1]
             if crop_box[2] - crop_box[0] < 2:
                 crop_box[2] += 2
             if crop_box[3] - crop_box[1] < 2:
                 crop_box[3] += 2
             cropped_image = img.crop(crop_box)
-            for i, ann_set in enumerate(ann_sets):
-                obj_cat_id = anns['annotations'][ann_id]['cat_id'][i]
-                obj_cat = categories[ann_set][obj_cat_id]
-                cropped_image.save(join(out_fp, ann_set, obj_cat, str(counter))
-                                   + '.png')
-                counter += 1
+            obj_cat = categories['deepscores'][
+                str(int(float(anns['annotations'][ann_id]['cat_id'][0])))
+            ]
+            cropped_image.save(join(out_fp, 'deepscores', obj_cat, str(ann_id))
+                               + '.png')
+            prog_bar.update()
+
 
 
 if __name__ == '__main__':
