@@ -12,7 +12,7 @@ import csv
 import argparse
 from os import listdir
 import random
-from os.path import join
+from os.path import join, splitext
 
 
 def parse_arguments():
@@ -38,9 +38,9 @@ def random_split(file_names: list) -> tuple:
     train_set = []
     for i, n in enumerate(file_names):
         if i in inds:
-            test_set.append(n)
+            test_set.append(splitext(n)[0])
         else:
-            train_set.append(n)
+            train_set.append(splitext(n)[0])
 
     return train_set, test_set
 
