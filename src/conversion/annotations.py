@@ -202,8 +202,8 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                     val_ann_list[str(counter)] = curr_ann
                 file_annotations.append(str(counter))
 
-                # Send train and val ann list to pickle files every 10000 anns
-                if counter % 10000 == 0:
+                # Send train and val ann list to pickle files every million anns
+                if counter % 1000000 == 0:
                     a, b, pickle_counter = pickle_anns(work_dir, pickle_counter,
                                                        train_ann_list,
                                                        val_ann_list)
