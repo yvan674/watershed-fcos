@@ -139,11 +139,12 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
         xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
         categories=categories,
         img_lookup=img_lookup,
+        work_dir=work_dir,
         train_set=training_set,
         val_set=val_set
     )
     print("Done!")
-    train_ann, val_ann, train_ann_lookup, val_ann_lookup = annotations
+    train_ann_fps, val_ann_fps, train_ann_lookup, val_ann_lookup = annotations
 
     train_desc = "Deepscores training set in the OBB format"
     val_desc = "Deepscores validation set in the OBB format"
@@ -161,8 +162,8 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     train_dataset.add_categories(categories)
     val_dataset.add_categories(categories)
 
-    train_dataset.add_annotations(train_ann)
-    val_dataset.add_annotations(val_ann)
+    train_dataset.add_annotations(train_ann_fps)
+    val_dataset.add_annotations(val_ann_fps)
 
     return train_dataset, val_dataset
 

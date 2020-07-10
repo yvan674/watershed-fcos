@@ -23,6 +23,7 @@ from itertools import groupby
 from tqdm import tqdm
 from cv2 import minAreaRect, boxPoints
 import pandas as pd
+import pickle
 
 
 # Some objects are not processed by the mask generation code. To deal with
@@ -80,7 +81,9 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
 def generate_oriented_annotations(pix_annotations_dir: str,
                                   xml_annotations_dir: str,
                                   categories: pd.DataFrame,
-                                  img_lookup: dict, train_set: set,
+                                  img_lookup: dict,
+                                  work_dir: str,
+                                  train_set: set,
                                   val_set: set = None) -> tuple:
     """Generates OBB annotations only.
 
@@ -92,6 +95,7 @@ def generate_oriented_annotations(pix_annotations_dir: str,
         categories: DataFrame containing the information in the class_names csv
             file.
         img_lookup: A lookup table to get the image_id of every named image.
+        work_dir: The temporary working directory to store temp files.
         train_set: A set that includes the image names of every image in the
             training set. Used to separate which annotation list the
             annotation should be appended to.
@@ -101,15 +105,19 @@ def generate_oriented_annotations(pix_annotations_dir: str,
 
     Returns:
         A tuple of annotation lists, the 0th element being the training ann
-        dict, the 1st being the validation ann dict, the 2nd being the a dict of
-        annotations with training image ids as the key, and the 3rd being a dict
-        of annotations with validation image ids as the key.
+        dict, the 1st being the validation ann dict, the 2nd being a list of
+        paths to the annotations pickled dictionary with training image ids as
+        the key, and the 3rd being a list of paths to the pickled dict of
+        annotations with validation image ids as the key.
     """
     print("Processing annotations...")
     train_ann_list = dict()
     val_ann_list = dict()
     train_ann_lookup = dict()
+    train_ann_pickle_paths = []
     val_ann_lookup = dict()
+    val_ann_pickle_paths = []
+    pickle_counter = 0
 
     # Change index of categories to use the xml name
     cat_set = set(categories['xml_name'].to_list())
@@ -119,7 +127,9 @@ def generate_oriented_annotations(pix_annotations_dir: str,
 
     file_list = listdir(xml_annotations_dir)
 
-    for file_name in tqdm(file_list):
+    prog_bar = tqdm(file_list)
+
+    for file_name in prog_bar:
         img_name = splitext(file_name)[0]
 
         img_in_train = img_name in train_set
@@ -191,14 +201,63 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                 else:
                     val_ann_list[str(counter)] = curr_ann
                 file_annotations.append(str(counter))
+
+                # Send train and val ann list to pickle files every 10000 anns
+                if counter % 10000 == 0:
+                    a, b, pickle_counter = pickle_anns(work_dir, pickle_counter,
+                                                       train_ann_list,
+                                                       val_ann_list)
+                    train_ann_pickle_paths.append(a)
+                    val_ann_pickle_paths.append(b)
+
+                    train_ann_list = dict()
+                    val_ann_list = dict()
+                    prog_bar.write(f'Wrote pickle file {pickle_counter}')
+
                 counter += 1
         if img_in_train:
             train_ann_lookup[image_id] = file_annotations
         elif img_in_val:
             val_ann_lookup[image_id] = file_annotations
 
-    return train_ann_list, val_ann_list, train_ann_lookup, val_ann_lookup
+    # Final pickling to make sure everything is pickled
+    a, b, pickle_counter = pickle_anns(work_dir, pickle_counter,
+                                       train_ann_list,
+                                       val_ann_list)
+    train_ann_pickle_paths.append(a)
+    val_ann_pickle_paths.append(b)
+    del train_ann_list
+    del val_ann_list
 
+    return train_ann_pickle_paths, val_ann_pickle_paths, \
+           train_ann_lookup, val_ann_lookup
+
+
+def pickle_anns(work_dir: str, pickle_counter: int, train_anns: dict,
+                val_anns: dict) -> tuple:
+    """Pickles training and validation ann dictionaries.
+
+    Pickles the given dictionaries and returns their paths as well as the new
+    pickle counter.
+
+    Returns:
+        A tuple. 0th element is fp to the train annotations pickled, 1st element
+        is the fp to the val annotations pickled, 2nd element is the updated
+        pickle counter.
+    """
+    train_ann_fp = join(work_dir,
+                        f'train_anns_{pickle_counter}.pkl')
+
+    val_ann_fp = join(work_dir,
+                      f'val_anns_{pickle_counter}.pkl')
+    pickle_counter += 1
+
+    with open(train_ann_fp, 'wb') as p_file:
+        pickle.dump(train_anns, p_file)
+    with open(val_ann_fp, 'wb') as p_file:
+        pickle.dump(val_anns, p_file)
+
+    return train_ann_fp, val_ann_fp, pickle_counter
 
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                          img_lookup: dict, train_set: set,

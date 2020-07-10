@@ -14,6 +14,7 @@ import json
 from datetime import datetime
 import pandas as pd
 from math import isnan
+import pickle
 
 
 class OBBAnnotations:
@@ -75,9 +76,13 @@ class OBBAnnotations:
         """Adds images from the given list into self."""
         self.annotations['images'] = images
 
-    def add_annotations(self, annotations: dict):
+    def add_annotations(self, annotations: list):
         """Adds annotations from the given dictionary into self."""
-        self.annotations['annotations'] = annotations
+        dict_anns = {}
+        for fp in annotations:
+            with open(fp, 'rb') as pickle_file:
+                dict_anns.update(pickle.load(pickle_file))
+        self.annotations['annotations'] = dict_anns
 
     def output_json(self, output_fp: str):
         """Outputs the annotations as a JSON file.
