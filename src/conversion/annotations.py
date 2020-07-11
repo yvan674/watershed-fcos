@@ -184,6 +184,15 @@ def generate_oriented_annotations(pix_annotations_dir: str,
 
                 oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
 
+                # Get values for comments
+                comments = ""
+                if obj.find('onset') is not None:
+                    comments += f"onset:{obj.find('onset').text.lstrip(' ')};"
+                if obj.find('duration') is not None:
+                    comments += f"duration:{obj.find('duration').text};"
+                if obj.find('rel_position') is not None:
+                    comments += f"rel_position:{obj.find('rel_position').text};"
+
                 # Convert aligned_bbox to the right values, i.e. [x0,y0,x1,y1]
                 aligned_bbox[2] += aligned_bbox[0]
                 aligned_bbox[3] += aligned_bbox[1]
@@ -194,7 +203,7 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                                muscima_cat],
                     'area': area,
                     'img_id': str(image_id),
-                    'comments': ""
+                    'comments': comments
                 }
                 if img_in_train:
                     train_ann_list[str(counter)] = curr_ann
