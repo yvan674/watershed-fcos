@@ -12,6 +12,7 @@ Created on:
 """
 import os.path as osp
 import os
+from pathlib import Path
 from shutil import rmtree
 from conversion import *
 import csv
@@ -44,7 +45,7 @@ def parse_argument():
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('DIR', type=str,
                         help='path to the directory containing the dataset')
-    parser.add_argument('CLASSES', type=str,
+    parser.add_argument('CLASSES', type=str, nargs='?', default='',
                         help='path to the file containing the class names list')
 
     return parser.parse_args()
@@ -170,9 +171,14 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
 
 if __name__ == '__main__':
     arguments = parse_argument()
+    if arguments.CLASSES == '':
+        classes = Path(__file__).parent.parent.absolute()
+        classes = classes / 'dataset' / 'extended_class_names.csv'
+    else:
+        classes = Path(arguments.CLASSES)
     start_time = time()
 
-    train, val = do_conversion(arguments.DIR, arguments.CLASSES)
+    train, val = do_conversion(arguments.DIR, classes)
 
     name_prefix = 'deepscores'
 

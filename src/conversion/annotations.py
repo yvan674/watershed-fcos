@@ -53,8 +53,12 @@ def extract_area_inside_bbox(bbox: list,
                              segmentation_mask: np.ndarray) -> np.ndarray:
     """Extracts just the area inside the bounding box from the seg mask."""
     xmin = floor(bbox[0])
-    ymin = floor(bbox[1])
+    ymin = floor(bbox[1] - 4)
     xmax = ceil((bbox[0] + bbox[2]))
+
+    # To deal with sometimes when the bbox is weird
+    if bbox[3] < 1:
+        bbox[3] += 15
     ymax = ceil((bbox[1] + bbox[3]))
 
     extracted_mask = segmentation_mask[ymin:ymax, xmin:xmax]
@@ -163,6 +167,7 @@ def generate_oriented_annotations(pix_annotations_dir: str,
                 # Get information about this category
                 cat = categories.loc[name]
                 ds_cat = str(cat['deepscores_category_id'])
+
                 if isnan(cat['muscima_id']):
                     muscima_cat = None
                 else:
@@ -440,6 +445,9 @@ def get_oriented_bbox(aligned_bbox, bin_mask):
         np.ndarray: bbox as a (8,) numpy array
     """
     adders = np.array(aligned_bbox[0:2])
+
+    # Correction for weird misalignment issue
+    adders[1] -= 4
 
     bin_indices = np.transpose(np.nonzero(bin_mask))
     min_box = boxPoints(minAreaRect(bin_indices))
