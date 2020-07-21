@@ -111,7 +111,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     # Process the segmentation directory
     print('Checking segmentation directory...')
     seg_dir = osp.join(dir_path, 'pix_annotations_png')
-    seg_files = os.listdir(osp.join(dir_path, 'pix_annotations_png'))
+    seg_files = os.listdir(seg_dir)
     for file in tqdm(seg_files):
         # Make sure that _seg has been added to the file
         ext = osp.splitext(file)
@@ -126,6 +126,24 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
                       osp.join(seg_dir, ext[0] + '_seg' + ext[1]))
     print('Done!')
 
+    # Process the instance directory
+    print('Checking instance directory...')
+    inst_dir = osp.join(dir_path, 'instance_png')
+    inst_files = os.listdir(inst_dir)
+    for file in tqdm(inst_files):
+        # Make sure that _seg has been added to the file
+        ext = osp.splitext(file)
+        if '.png' not in ext:
+            # We only expect _seg in png file names so we ignore the file if
+            # it's not a png file
+            continue
+        elif '_inst' in file:
+            continue
+        else:
+            os.rename(osp.join(inst_dir, file),
+                      osp.join(inst_dir, ext[0] + '_inst' + ext[1]))
+    print('Done!')
+
     # Figure out the classes
     print("Reading categories...")
     if not osp.isabs(class_names_fp):
@@ -136,7 +154,7 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     # Process the annotations
     print("Generating annotations...")
     annotations = generate_oriented_annotations(
-        pix_annotations_dir=osp.join(dir_path, 'pix_annotations_png'),
+        instance_dir=inst_dir,
         xml_annotations_dir=osp.join(dir_path, 'xml_annotations'),
         categories=categories,
         img_lookup=img_lookup,

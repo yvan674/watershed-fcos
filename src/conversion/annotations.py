@@ -17,7 +17,7 @@ from xml.etree import ElementTree as ET
 from os import listdir
 from os.path import join, splitext
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageColor
 from math import floor, ceil, isnan
 from itertools import groupby
 from tqdm import tqdm
@@ -65,7 +65,8 @@ def extract_area_inside_bbox(bbox: list,
     return np.asfortranarray(extracted_mask)
 
 
-def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
+def generate_binary_mask(seg_mask: np.ndarray,
+                         category_code: int or tuple) -> tuple:
     """Generates a binary mask of a single category.
 
     Args:
@@ -78,11 +79,18 @@ def generate_binary_mask(seg_mask: np.ndarray, category_code: int) -> tuple:
         A tuple with element 1 being the binary mask and element 2 being the
         area of the mask.
     """
-    bin_mask = seg_mask == category_code
+    if isinstance(category_code, int):
+        bin_mask = seg_mask == category_code
+    else:
+        r_bool = seg_mask[:, :, 0] == category_code[0]
+        g_bool = seg_mask[:, :, 1] == category_code[1]
+        b_bool = seg_mask[:, :, 2] == category_code[2]
+        bin_mask = r_bool & g_bool & b_bool
+
     return bin_mask.astype('uint8'), np.count_nonzero(bin_mask)
 
 
-def generate_oriented_annotations(pix_annotations_dir: str,
+def generate_oriented_annotations(instance_dir: str,
                                   xml_annotations_dir: str,
                                   categories: pd.DataFrame,
                                   img_lookup: dict,
@@ -146,11 +154,11 @@ def generate_oriented_annotations(pix_annotations_dir: str,
             continue
 
         xml_path = join(xml_annotations_dir, file_name)
-        segmentation_path = join(pix_annotations_dir, img_name + '_seg.png')
+        instance_path = join(instance_dir, img_name + '_inst.png')
         file_annotations = []
         image_id = img_lookup[img_name]
 
-        seg_array = np.array(Image.open(segmentation_path))
+        inst_array = np.array(Image.open(instance_path))
         # NOTE: seg_array.shape = (height, width)
 
         # Generate tree from xml
@@ -178,11 +186,11 @@ def generate_oriented_annotations(pix_annotations_dir: str,
 
                 # Get the segmentation
                 extracted_seg = extract_area_inside_bbox(aligned_bbox,
-                                                         seg_array)
+                                                         inst_array)
 
-                class_color = int(cat['id'])
+                instance_color = ImageColor.getrgb(obj.find('instance').text)
                 bin_mask, area = generate_binary_mask(extracted_seg,
-                                                      class_color)
+                                                      instance_color)
 
                 if area == 0:
                     continue

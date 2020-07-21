@@ -40,6 +40,7 @@ if __name__ == '__main__':
 
     imgs_to_copy = []
     seg_to_copy = []
+    inst_to_copy = []
 
     train_files = [splitext(img['filename'])[0]
                    for img in train_json['images']]
@@ -51,6 +52,7 @@ if __name__ == '__main__':
     print('Scanning directories...')
     img_files = listdir(join(args.DIR, 'images_png'))
     seg_files = listdir(join(args.DIR, 'pix_annotations_png'))
+    inst_files = listdir(join(args.DIR, 'instance_png'))
 
     for img in img_files:
         if splitext(img)[0] in good_files:
@@ -60,12 +62,18 @@ if __name__ == '__main__':
         if seg.strip('_seg.png') in good_files:
             seg_to_copy.append(join(args.DIR, 'pix_annotations_png', seg))
 
-    print(f'Copying {len(imgs_to_copy) + len(seg_to_copy)} files...')
+    for inst in inst_files:
+        if inst.strip('_inst.png') in good_files:
+            inst_to_copy.append(join(args.DIR, 'instance_png', inst))
+
+    print(f'Copying {len(imgs_to_copy) + len(seg_to_copy) + len(inst_to_copy)} '
+          f'files...')
 
     if not exists(args.OUT):
         mkdir(args.OUT)
         mkdir(join(args.OUT, 'images'))
         mkdir(join(args.OUT, 'segmentation'))
+        mkdir(join(args.OUT, 'instance'))
 
     print("Copying images...")
     for img in tqdm(imgs_to_copy):
@@ -74,6 +82,10 @@ if __name__ == '__main__':
     print("Copying segmentation...")
     for seg in tqdm(seg_to_copy):
         copyfile(seg, join(args.OUT, 'segmentation', split(seg)[1]))
+
+    print("Copying instances...")
+    for inst in tqdm(inst_to_copy):
+        copyfile(inst, join(args.OUT, 'segmentation', split(inst)[1]))
 
     print("Copying annotations...")
     copyfile(train_ann_fp, join(args.OUT, args.TRAIN))
