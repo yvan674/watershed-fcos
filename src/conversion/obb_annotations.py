@@ -18,8 +18,8 @@ import pickle
 
 
 class OBBAnnotations:
-    def __init__(self, description: str, version='1.0',
-                 url: str='https://tuggeluk.github.io/deepscores/'):
+    def __init__(self, description: str, subset: str, version='1.0',
+                 url: str = 'https://tuggeluk.github.io/deepscores/'):
         """Creates the basic structure of the OBB annotations.
 
         Creates the basic structure. Images, categories, and annotations
@@ -45,6 +45,7 @@ class OBBAnnotations:
             'images': None,
             'annotations': None
         }
+        self.annotations_to_include = set()
 
     def add_categories(self, categories: pd.DataFrame):
         """Adds categories from the given DataFrame into self."""
@@ -75,14 +76,34 @@ class OBBAnnotations:
     def add_images(self, images: list):
         """Adds images from the given list into self."""
         self.annotations['images'] = images
+        for img in images:
+            self.annotations_to_include.update(img['ann_ids'])
 
-    def add_annotations(self, annotations: list):
-        """Adds annotations from the given dictionary into self."""
+    def add_annotations(self, annotations: list, fp_idx: int = 0):
+        """Adds annotations from the given dictionary into self.
+
+        Returns:
+            int: A single value representing the index of the last file that
+                was used.
+        """
         dict_anns = {}
-        for fp in annotations:
+        for fp in annotations[fp_idx:]:
             with open(fp, 'rb') as pickle_file:
-                dict_anns.update(pickle.load(pickle_file))
+                curr_dict = pickle.load(pickle_file)
+                keys = set(curr_dict.keys())
+                if keys.issubset(self.annotations_to_include):
+                    # Normal case
+                    dict_anns.update(curr_dict)
+                    self.annotations_to_include.difference_update(keys)
+                    fp_idx += 1
+                else:
+                    # We're at the last file to include
+                    for key in curr_dict:
+                        if key in self.annotations_to_include:
+                            dict_anns[key] = curr_dict[key]
+                    break
         self.annotations['annotations'] = dict_anns
+        return fp_idx
 
     def output_json(self, output_fp: str):
         """Outputs the annotations as a JSON file.

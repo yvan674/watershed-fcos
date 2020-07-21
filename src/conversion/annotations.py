@@ -184,11 +184,12 @@ def generate_oriented_annotations(instance_dir: str,
                 # Get the abs aligned bounding box of the specific annotation
                 aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
 
-                # Get the segmentation
+                # Get the instance segmentation
                 extracted_seg = extract_area_inside_bbox(aligned_bbox,
                                                          inst_array)
 
-                instance_color = ImageColor.getrgb(obj.find('instance').text)
+                instance_hex = obj.find('instance').text
+                instance_color = ImageColor.getrgb(instance_hex)
                 bin_mask, area = generate_binary_mask(extracted_seg,
                                                       instance_color)
 
@@ -198,7 +199,7 @@ def generate_oriented_annotations(instance_dir: str,
                 oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
 
                 # Get values for comments
-                comments = ""
+                comments = f"instance:{instance_hex};"
                 if obj.find('onset') is not None:
                     comments += f"onset:{obj.find('onset').text.lstrip(' ')};"
                 if obj.find('duration') is not None:

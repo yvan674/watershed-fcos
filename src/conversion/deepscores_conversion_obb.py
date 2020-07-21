@@ -47,17 +47,14 @@ def parse_argument():
                         help='path to the directory containing the dataset')
     parser.add_argument('CLASSES', type=str, nargs='?', default='',
                         help='path to the file containing the class names list')
+    parser.add_argument('-d', '--dense', action='store_true',
+                        help='dataset should be marked as dense')
 
     return parser.parse_args()
 
 
-def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
-    """Does the actual conversion.
-
-    Returns:
-        A tuple where the first element is the training OBBAnnotations
-        and the second element is the validation OBBAnnotations.
-    """
+def do_conversion(dir_path: str, class_names_fp: str, dense: bool):
+    """Does the actual conversion."""
     training_set = set()
     val_set = set()
 
@@ -170,21 +167,72 @@ def do_conversion(dir_path: str, class_names_fp: str) -> tuple:
     img_style = 'obb'
 
     # Once that's complete, generate the actual dataset objects.
-    train_dataset = OBBAnnotations(train_desc, version='2.0')
-    val_dataset = OBBAnnotations(val_desc, version='2.0')
+    if dense:
+        train_dataset = OBBAnnotations(train_desc, version='2.0',
+                                       subset='dense')
+        val_dataset = OBBAnnotations(val_desc, version='2.0',
+                                     subset='dense')
 
-    train_dataset.add_images(image_csv_to_dict(train_img_path, img_style,
-                                               train_ann_lookup))
-    val_dataset.add_images(image_csv_to_dict(val_img_path, img_style,
-                                             val_ann_lookup))
+        train_dataset.add_images(image_csv_to_dict(train_img_path, img_style,
+                                                   train_ann_lookup))
+        val_dataset.add_images(image_csv_to_dict(val_img_path, img_style,
+                                                 val_ann_lookup))
+        train_dataset.add_categories(categories)
+        val_dataset.add_categories(categories)
 
-    train_dataset.add_categories(categories)
-    val_dataset.add_categories(categories)
+        train_dataset.add_annotations(train_ann_fps)
+        val_dataset.add_annotations(val_ann_fps)
 
-    train_dataset.add_annotations(train_ann_fps)
-    val_dataset.add_annotations(val_ann_fps)
+        name_prefix = 'deepscores'
 
-    return train_dataset, val_dataset
+        print('\nWriting training annotation file to disk...')
+        train_dataset.output_json(osp.join(
+            arguments.DIR, name_prefix + '_train.json')
+        )
+
+        print('\nWriting validation annotation file to disk...')
+        val_dataset.output_json(osp.join(
+            arguments.DIR, name_prefix + '_val.json')
+        )
+
+    else:
+        name_prefix = 'deepscores'
+        num_train_datasets = num_train_imgs // 2000 + 1
+        num_val_datasets = num_test_imgs // 2000 + 1
+
+        def generate_full_datasets(num_datasets: int, img_path: str,
+                                   ann_lookup: dict, desc: str,
+                                   ann_fps: list, train_dataset: bool):
+            images = image_csv_to_dict(img_path, img_style, ann_lookup)
+            fp_idx = 0
+
+            for i in range(num_datasets):
+                dataset = OBBAnnotations(desc, version='2.0',
+                                         subset=f'complete-{i}')
+                if i != (num_datasets - 1):
+                    dataset.add_images(images[2000 * i:2000 * (i + 1)])
+                else:
+                    dataset.add_images(images[2000 * i:])
+                fp_idx = dataset.add_annotations(ann_fps, fp_idx)
+
+                if train_dataset:
+                    print(f'\nWriting training annotation file {i} to disk...')
+                    dataset.output_json(osp.join(
+                        dir_path, name_prefix + f'-complete-{i}_train.json'))
+                else:
+                    print(f'\nWriting validation annotation file {i} to '
+                          f'disk...')
+                    dataset.output_json(osp.join(
+                        dir_path, name_prefix + f'-complete-{i}_val.json'))
+            del images
+            del dataset
+
+        generate_full_datasets(num_train_datasets, train_img_path,
+                               train_ann_lookup, train_desc, train_ann_fps,
+                               True)
+        generate_full_datasets(num_val_datasets, val_img_path,
+                               val_ann_lookup, val_desc, val_ann_fps,
+                               False)
 
 
 if __name__ == '__main__':
@@ -196,15 +244,7 @@ if __name__ == '__main__':
         classes = Path(arguments.CLASSES)
     start_time = time()
 
-    train, val = do_conversion(arguments.DIR, classes)
-
-    name_prefix = 'deepscores'
-
-    print('\nWriting training annotation file to disk...')
-    train.output_json(osp.join(arguments.DIR, name_prefix + '_train.json'))
-
-    print('\nWriting validation annotation file to disk...')
-    val.output_json(osp.join(arguments.DIR, name_prefix + '_val.json'))
+    do_conversion(arguments.DIR, classes, arguments.dense)
 
     print('\nConversion completed!')
     print(f"Total time: {pretty_time_delta(time() - start_time)}")
