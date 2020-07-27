@@ -213,6 +213,7 @@ def do_conversion(dir_path: str, class_names_fp: str, dense: bool):
                     dataset.add_images(images[2000 * i:2000 * (i + 1)])
                 else:
                     dataset.add_images(images[2000 * i:])
+                dataset.add_categories(categories)
                 fp_idx = dataset.add_annotations(ann_fps, fp_idx)
 
                 if train_dataset:
