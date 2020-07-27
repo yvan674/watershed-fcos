@@ -85,7 +85,7 @@ if __name__ == '__main__':
 
     print("Copying instances...")
     for inst in tqdm(inst_to_copy):
-        copyfile(inst, join(args.OUT, 'segmentation', split(inst)[1]))
+        copyfile(inst, join(args.OUT, 'instances', split(inst)[1]))
 
     print("Copying annotations...")
     copyfile(train_ann_fp, join(args.OUT, args.TRAIN))
