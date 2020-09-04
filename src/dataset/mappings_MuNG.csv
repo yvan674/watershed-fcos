@@ -234,8 +234,8 @@ Number,Symbol ID,Symbol Description,Init_name,Direct Mapped,
 232,OttavaText_8vb,ottava 8 vb,OttavaBracket_,2,146
 233,OttavaText_8va,ottava 8 va,OttavaBracket_,2,147
 234,OttavaText_15ma,ottava 15 ma,OttavaBracket_,2,148
-235,text_script,text,Unknown_TextScript,2,149
-236,text_field,text,XXX,2,150
+235,text_script,text,Unknown_TextScript,0,149
+236,text_field,text,XXX,0,150
 237,restHBar,Multiple measure rest,Unknown_MultiMeasureRest_,2,156
 238,combTimeSignature,combined bounding box for Time sig,XXX,2,157
 239,combStaff,combined staff,XXX,2,158
