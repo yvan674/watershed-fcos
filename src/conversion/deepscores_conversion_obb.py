@@ -49,11 +49,13 @@ def parse_argument():
                         help='path to the file containing the class names list')
     parser.add_argument('-d', '--dense', action='store_true',
                         help='dataset should be marked as dense')
+    parser.add_argument('-y', action='store_true',
+                        help='silently say yes to all input queries.')
 
     return parser.parse_args()
 
 
-def do_conversion(dir_path: str, class_names_fp: str, dense: bool):
+def do_conversion(dir_path: str, class_names_fp: str, dense: bool, silent: bool):
     """Does the actual conversion."""
     training_set = set()
     val_set = set()
@@ -98,12 +100,12 @@ def do_conversion(dir_path: str, class_names_fp: str, dense: bool):
 
     print(f'Found {num_train_imgs} training images and {num_test_imgs} '
           'validation images.')
-
-    if not ask():
-        if ask('Delete tmp files?'):
-            # Deletes all tmp files
-            rmtree(osp.join(dir_path, 'tmp'), ignore_errors=True)
-        exit()
+    if not silent:
+        if not ask():
+            if ask('Delete tmp files?'):
+                # Deletes all tmp files
+                rmtree(osp.join(dir_path, 'tmp'), ignore_errors=True)
+            exit()
 
     # Process the segmentation directory
     print('Checking segmentation directory...')
@@ -245,7 +247,7 @@ if __name__ == '__main__':
         classes = Path(arguments.CLASSES)
     start_time = time()
 
-    do_conversion(arguments.DIR, classes, arguments.dense)
+    do_conversion(arguments.DIR, classes, arguments.dense, arguments.y)
 
     print('\nConversion completed!')
     print(f"Total time: {pretty_time_delta(time() - start_time)}")

@@ -29,6 +29,8 @@ import pickle
 # Some objects are not processed by the mask generation code. To deal with
 # these, we'll simply have a set of these objects. If the name is in this set,
 # then the segmentation will simply be the entire aligned bbox area.
+from typing import Tuple
+
 NON_COLORED_NAMES = {'staffLine'}
 OFF_BY_ONE = {'gClef', 'fClef'}
 RENAMED_MAPPINGS = {'dynamicF': 'dynamicForte',
@@ -54,30 +56,33 @@ def binary_mask_to_rle(binary_mask):
 
 
 def extract_area_inside_bbox(bbox: list,
-                             segmentation_mask: np.ndarray) -> np.ndarray:
+                             segmentation_mask: np.ndarray) -> \
+        Tuple[np.ndarray, np.ndarray]:
     """Extracts just the area inside the bounding box from the seg mask.
 
     Returns:
         A numpy array of the segmentation mask. This array is cropped to an
             area based on the bbox expanded by 100 pixels on each side. The 100
             pixel expansion is done since something the bounding boxes are
-            weird or wrong.
+            weird or wrong. The second value is the offset of the bbox from the
+            origin.
     """
     # Note: segmentation mask has shape (h, w, c) where c is channels
     # Max and min are used on each value to make sure the bounds we get are
     # within the actual area of the segmentation mask itself.
     h, w, _ = segmentation_mask.shape
-    xmin = max(0, floor(bbox[0] - 104))
-    ymin = max(0, floor(bbox[1] - 100))
-    xmax = min(ceil((bbox[0] + bbox[2])), w - 1)
+    xmin = max(0, floor(bbox[0] - 100))
+    ymin = max(0, floor(bbox[1] - 104))
+    xmax = min(ceil((bbox[0] + bbox[2] + 100)), w - 1)
 
     # To deal with sometimes when the bbox is weird
     if bbox[3] < 1:
         bbox[3] += 100
-    ymax = min(ceil((bbox[1] + bbox[3])), h - 1)
+    ymax = min(ceil((bbox[1] + bbox[3] + 96)), h - 1)
 
     extracted_mask = segmentation_mask[ymin:ymax, xmin:xmax]
-    return np.asfortranarray(extracted_mask)
+    offset = np.array([xmin, ymin])
+    return np.asfortranarray(extracted_mask), offset
 
 
 def generate_binary_mask(seg_mask: np.ndarray,
@@ -199,8 +204,8 @@ def generate_oriented_annotations(instance_dir: str,
                 aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
 
                 # Get the instance segmentation
-                extracted_seg = extract_area_inside_bbox(aligned_bbox,
-                                                         inst_array)
+                extracted_seg, offset = extract_area_inside_bbox(aligned_bbox,
+                                                                 inst_array)
 
                 instance_hex = obj.find('instance').text
                 instance_color = ImageColor.getrgb(instance_hex)
@@ -210,7 +215,8 @@ def generate_oriented_annotations(instance_dir: str,
                 if area == 0:
                     continue
 
-                oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
+                aligned_bbox, oriented_bbox = get_actual_bboxes(offset,
+                                                                bin_mask)
 
                 # Get values for comments
                 comments = f"instance:{instance_hex};"
@@ -222,10 +228,10 @@ def generate_oriented_annotations(instance_dir: str,
                     comments += f"rel_position:{obj.find('rel_position').text};"
 
                 # Convert aligned_bbox to the right values, i.e. [x0,y0,x1,y1]
-                aligned_bbox[2] += aligned_bbox[0]
-                aligned_bbox[3] += aligned_bbox[1]
+                # aligned_bbox[2] += aligned_bbox[0]
+                # aligned_bbox[3] += aligned_bbox[1]
                 curr_ann = {
-                    'a_bbox': aligned_bbox,
+                    'a_bbox': aligned_bbox.tolist(),
                     'o_bbox': oriented_bbox.tolist(),
                     'cat_id': [ds_cat,
                                muscima_cat],
@@ -418,7 +424,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                 else:
                     if area == 0:
                         bin_mask = np.ones_like(bin_mask)
-                    oriented_bbox = get_oriented_bbox(aligned_bbox, bin_mask)
+                    oriented_bbox = get_actual_bboxes(aligned_bbox, bin_mask)
                     curr_ann = {
                         'a_bbox': aligned_bbox,
                         'o_bbox': oriented_bbox.tolist(),
@@ -461,20 +467,29 @@ def get_aligned_bbox(bndbox: ET.Element, h: float, w: float) -> list:
     return [xmin, ymin, round(width, 8), round(height, 8)]
 
 
-def get_oriented_bbox(aligned_bbox: list, bin_mask: np.ndarray) -> np.ndarray:
+def get_actual_bboxes(offset: list, bin_mask: np.ndarray) -> \
+        Tuple[np.ndarray, np.ndarray]:
     """Calculates the oriented bounding box around an object.
 
     Returns:
-        bbox as an (8,) numpy array.
+        Refined aligned bbox as a (4,) numpy array and oriented bbox as an (8,)
+            numpy array.
     """
-    adders = np.array(aligned_bbox[0:2])
-
     # Correction for weird misalignment issue
-    adders -= BBOX_ADDERS
+    # offset -= BBOX_ADDERS
 
     bin_indices = np.transpose(np.nonzero(bin_mask))
     min_box = boxPoints(minAreaRect(bin_indices))
     min_box = np.flip(min_box, 1)  # For some reason this is in the wrong order
-    min_box += adders  # shift them to their actual absolute position
+    min_box += offset  # shift them to their actual absolute position
 
-    return np.concatenate(min_box)
+    # Now refine the aligned bbox
+    rows = np.any(bin_mask, axis=0)
+    cols = np.any(bin_mask, axis=1)
+    xmin, xmax = np.where(rows)[0][[0, -1]]
+    ymin, ymax = np.where(cols)[0][[0, -1]]
+
+    refined_bbox = np.array([xmin, ymin, xmax, ymax], dtype=float)
+    refined_bbox += np.array([offset[0], offset[1], offset[0], offset[1]])
+
+    return (refined_bbox, np.concatenate(min_box))
