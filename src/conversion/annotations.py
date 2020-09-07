@@ -36,6 +36,10 @@ RENAMED_MAPPINGS = {'dynamicF': 'dynamicForte',
                     'dynamicM': 'dynamicMezzo',
                     'combStaff': 'staffLine'}
 
+# Adder for bbox to make sure all pixels are calculated.
+# Values are for x and y axes respectively.
+BBOX_ADDERS = (100, 104)
+
 
 def binary_mask_to_rle(binary_mask):
     rle = {'counts': [], 'size': list(binary_mask.shape)}
@@ -63,7 +67,7 @@ def extract_area_inside_bbox(bbox: list,
     # Max and min are used on each value to make sure the bounds we get are
     # within the actual area of the segmentation mask itself.
     h, w, _ = segmentation_mask.shape
-    xmin = max(0, floor(bbox[0] - 100))
+    xmin = max(0, floor(bbox[0] - 104))
     ymin = max(0, floor(bbox[1] - 100))
     xmax = min(ceil((bbox[0] + bbox[2])), w - 1)
 
@@ -466,7 +470,7 @@ def get_oriented_bbox(aligned_bbox: list, bin_mask: np.ndarray) -> np.ndarray:
     adders = np.array(aligned_bbox[0:2])
 
     # Correction for weird misalignment issue
-    adders[1] -= 4
+    adders -= BBOX_ADDERS
 
     bin_indices = np.transpose(np.nonzero(bin_mask))
     min_box = boxPoints(minAreaRect(bin_indices))
