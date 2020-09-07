@@ -439,12 +439,15 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
             train_annotation_lookup, test_annotation_lookup)
 
 
-def get_aligned_bbox(bndbox, h, w):
+def get_aligned_bbox(bndbox: ET.Element, h: float, w: float) -> list:
     """Gets the axis aligned absolute bounding box.
 
     This function gets the aligned bounding box of an object based on the
     bndbox value given in the xml description of the object. h and w are used
     to change the values from relative to absolute.
+
+    Returns:
+        A list representation of the bounding box containing [xmin, xmax, w, h].
     """
     xmin = float(bndbox.find('xmin').text) * w
     ymin = float(bndbox.find('ymin').text) * h
@@ -454,11 +457,11 @@ def get_aligned_bbox(bndbox, h, w):
     return [xmin, ymin, round(width, 8), round(height, 8)]
 
 
-def get_oriented_bbox(aligned_bbox, bin_mask):
+def get_oriented_bbox(aligned_bbox: list, bin_mask: np.ndarray) -> np.ndarray:
     """Calculates the oriented bounding box around an object.
 
     Returns:
-        np.ndarray: bbox as a (8,) numpy array
+        bbox as an (8,) numpy array.
     """
     adders = np.array(aligned_bbox[0:2])
 
