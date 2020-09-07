@@ -51,15 +51,26 @@ def binary_mask_to_rle(binary_mask):
 
 def extract_area_inside_bbox(bbox: list,
                              segmentation_mask: np.ndarray) -> np.ndarray:
-    """Extracts just the area inside the bounding box from the seg mask."""
-    xmin = floor(bbox[0])
-    ymin = floor(bbox[1] - 4)
-    xmax = ceil((bbox[0] + bbox[2]))
+    """Extracts just the area inside the bounding box from the seg mask.
+
+    Returns:
+        A numpy array of the segmentation mask. This array is cropped to an
+            area based on the bbox expanded by 100 pixels on each side. The 100
+            pixel expansion is done since something the bounding boxes are
+            weird or wrong.
+    """
+    # Note: segmentation mask has shape (h, w, c) where c is channels
+    # Max and min are used on each value to make sure the bounds we get are
+    # within the actual area of the segmentation mask itself.
+    h, w, _ = segmentation_mask.shape
+    xmin = max(0, floor(bbox[0] - 100))
+    ymin = max(0, floor(bbox[1] - 100))
+    xmax = min(ceil((bbox[0] + bbox[2])), w - 1)
 
     # To deal with sometimes when the bbox is weird
     if bbox[3] < 1:
-        bbox[3] += 15
-    ymax = ceil((bbox[1] + bbox[3]))
+        bbox[3] += 100
+    ymax = min(ceil((bbox[1] + bbox[3])), h - 1)
 
     extracted_mask = segmentation_mask[ymin:ymax, xmin:xmax]
     return np.asfortranarray(extracted_mask)
@@ -77,7 +88,7 @@ def generate_binary_mask(seg_mask: np.ndarray,
 
     Returns:
         A tuple with element 1 being the binary mask and element 2 being the
-        area of the mask.
+            area of the mask.
     """
     if isinstance(category_code, int):
         bin_mask = seg_mask == category_code
@@ -100,10 +111,9 @@ def generate_oriented_annotations(instance_dir: str,
     """Generates OBB annotations only.
 
     Args:
-        pix_annotations_dir: Path to the pix_annotations directory,
-            i.e. where the segmented images are.
-        xml_annotations_dir: Path to the xml_annotations directory,
-            i.e. where the object annotations are.
+        instance_dir: Path to the where the instance segmentation images are.
+        xml_annotations_dir: Path to the directory containing the object
+            annotations.
         categories: DataFrame containing the information in the class_names csv
             file.
         img_lookup: A lookup table to get the image_id of every named image.
@@ -117,10 +127,10 @@ def generate_oriented_annotations(instance_dir: str,
 
     Returns:
         A tuple of annotation lists, the 0th element being the training ann
-        dict, the 1st being the validation ann dict, the 2nd being a list of
-        paths to the annotations pickled dictionary with training image ids as
-        the key, and the 3rd being a list of paths to the pickled dict of
-        annotations with validation image ids as the key.
+            dict, the 1st being the validation ann dict, the 2nd being a list of
+            paths to the annotations pickled dictionary with training image ids
+            as the key, and the 3rd being a list of paths to the pickled dict of
+            annotations with validation image ids as the key.
     """
     print("Processing annotations...")
     train_ann_list = dict()
@@ -252,8 +262,8 @@ def generate_oriented_annotations(instance_dir: str,
     del train_ann_list
     del val_ann_list
 
-    return train_ann_pickle_paths, val_ann_pickle_paths, \
-           train_ann_lookup, val_ann_lookup
+    return train_ann_pickle_paths, val_ann_pickle_paths, train_ann_lookup, \
+        val_ann_lookup
 
 
 def pickle_anns(work_dir: str, pickle_counter: int, train_anns: dict,
@@ -265,8 +275,8 @@ def pickle_anns(work_dir: str, pickle_counter: int, train_anns: dict,
 
     Returns:
         A tuple. 0th element is fp to the train annotations pickled, 1st element
-        is the fp to the val annotations pickled, 2nd element is the updated
-        pickle counter.
+            is the fp to the val annotations pickled, 2nd element is the updated
+            pickle counter.
     """
     train_ann_fp = join(work_dir,
                         f'train_anns_{pickle_counter}.pkl')
@@ -281,6 +291,7 @@ def pickle_anns(work_dir: str, pickle_counter: int, train_anns: dict,
         pickle.dump(val_anns, p_file)
 
     return train_ann_fp, val_ann_fp, pickle_counter
+
 
 def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                          img_lookup: dict, train_set: set,
@@ -306,9 +317,9 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
 
     Returns:
         A tuple of annotation lists, the 0th element being the training list,
-        the 1st being the validation list, the 2nd being the list of
-        annotations per training image, and the 3rd being the list of
-        annotations per validation image.
+            the 1st being the validation list, the 2nd being the list of
+            annotations per training image, and the 3rd being the list of
+            annotations per validation image.
     """
     if category_lookup is None:
         assert not oriented, 'Category lookup dictionary is required.'
@@ -363,11 +374,7 @@ def generate_annotations(pix_annotations_dir: str, xml_annotations_dir: str,
                 name = RENAMED_MAPPINGS[name]
             if name in category_lookup:
                 # First get category ID
-                if "change" in name:
-                    # NOTE: This branch is now deprecated.
-                    pass
-                else:
-                    category_id = category_lookup[name]
+                category_id = category_lookup[name]
 
                 # Second, get aligned bbox
                 aligned_bbox = get_aligned_bbox(obj.find('bndbox'), h, w)
