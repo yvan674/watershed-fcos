@@ -165,7 +165,7 @@ def do_conversion(dir_path: str, class_names_fp: str, dense: bool, silent: bool)
     train_ann_fps, val_ann_fps, train_ann_lookup, val_ann_lookup = annotations
 
     train_desc = "Deepscores training set in the OBB format"
-    val_desc = "Deepscores validation set in the OBB format"
+    val_desc = "Deepscores test set in the OBB format"
     img_style = 'obb'
 
     # Once that's complete, generate the actual dataset objects.
@@ -192,9 +192,9 @@ def do_conversion(dir_path: str, class_names_fp: str, dense: bool, silent: bool)
             arguments.DIR, name_prefix + '_train.json')
         )
 
-        print('\nWriting validation annotation file to disk...')
+        print('\nWriting test annotation file to disk...')
         val_dataset.output_json(osp.join(
-            arguments.DIR, name_prefix + '_val.json')
+            arguments.DIR, name_prefix + '_test.json')
         )
 
     else:
@@ -223,10 +223,10 @@ def do_conversion(dir_path: str, class_names_fp: str, dense: bool, silent: bool)
                     dataset.output_json(osp.join(
                         dir_path, name_prefix + f'-complete-{i}_train.json'))
                 else:
-                    print(f'\nWriting validation annotation file {i} to '
+                    print(f'\nWriting test annotation file {i} to '
                           f'disk...')
                     dataset.output_json(osp.join(
-                        dir_path, name_prefix + f'-complete-{i}_val.json'))
+                        dir_path, name_prefix + f'-complete-{i}_test.json'))
             del images
             del dataset
 
